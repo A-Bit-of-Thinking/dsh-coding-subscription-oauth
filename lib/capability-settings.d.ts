@@ -60,57 +60,57 @@ export declare const DEFAULT_CAPABILITY_SETTINGS: CapabilitySettings;
  * Real Schemastery schema registered with the Host settings service. Defaults
  * remain conservative, and bounds are enforced before a user document commits.
  */
-export declare const CapabilitySettingsSchema: Schema<Schemastery.ObjectS<{
-    codexSearch: Schema<boolean, boolean>;
-    codexImages: Schema<boolean, boolean>;
-    codexImageEdits: Schema<boolean, boolean>;
-    codexImagesAnyModel: Schema<boolean, boolean>;
-    codexUsage: Schema<boolean, boolean>;
-    codexFast: Schema<boolean, boolean>;
-    grokImagineImage: Schema<boolean, boolean>;
-    grokImagineVideo: Schema<boolean, boolean>;
-    searchResults: Schema<number, number>;
-    imageCount: Schema<number, number>;
-    videoArtifactTtlMs: Schema<number, number>;
-}>, Schemastery.ObjectT<{
-    codexSearch: Schema<boolean, boolean>;
-    codexImages: Schema<boolean, boolean>;
-    codexImageEdits: Schema<boolean, boolean>;
-    codexImagesAnyModel: Schema<boolean, boolean>;
-    codexUsage: Schema<boolean, boolean>;
-    codexFast: Schema<boolean, boolean>;
-    grokImagineImage: Schema<boolean, boolean>;
-    grokImagineVideo: Schema<boolean, boolean>;
-    searchResults: Schema<number, number>;
-    imageCount: Schema<number, number>;
-    videoArtifactTtlMs: Schema<number, number>;
-}>>;
+export declare const CapabilitySettingsSchema: Schema<Schemastery.ObjectS<NoInfer<{
+    codexSearch: Schema<boolean, boolean, "defined">;
+    codexImages: Schema<boolean, boolean, "defined">;
+    codexImageEdits: Schema<boolean, boolean, "defined">;
+    codexImagesAnyModel: Schema<boolean, boolean, "defined">;
+    codexUsage: Schema<boolean, boolean, "defined">;
+    codexFast: Schema<boolean, boolean, "defined">;
+    grokImagineImage: Schema<boolean, boolean, "defined">;
+    grokImagineVideo: Schema<boolean, boolean, "defined">;
+    searchResults: Schema<number, number, "defined">;
+    imageCount: Schema<number, number, "defined">;
+    videoArtifactTtlMs: Schema<number, number, "defined">;
+}>>, Schemastery.ObjectT<NoInfer<{
+    codexSearch: Schema<boolean, boolean, "defined">;
+    codexImages: Schema<boolean, boolean, "defined">;
+    codexImageEdits: Schema<boolean, boolean, "defined">;
+    codexImagesAnyModel: Schema<boolean, boolean, "defined">;
+    codexUsage: Schema<boolean, boolean, "defined">;
+    codexFast: Schema<boolean, boolean, "defined">;
+    grokImagineImage: Schema<boolean, boolean, "defined">;
+    grokImagineVideo: Schema<boolean, boolean, "defined">;
+    searchResults: Schema<number, number, "defined">;
+    imageCount: Schema<number, number, "defined">;
+    videoArtifactTtlMs: Schema<number, number, "defined">;
+}>>, "plain">;
 /** Serialized schema metadata consumed by Settings UI tests and diagnostics. */
-export declare const CAPABILITY_SETTINGS_SCHEMA_JSON: Schema<Schemastery.ObjectS<{
-    codexSearch: Schema<boolean, boolean>;
-    codexImages: Schema<boolean, boolean>;
-    codexImageEdits: Schema<boolean, boolean>;
-    codexImagesAnyModel: Schema<boolean, boolean>;
-    codexUsage: Schema<boolean, boolean>;
-    codexFast: Schema<boolean, boolean>;
-    grokImagineImage: Schema<boolean, boolean>;
-    grokImagineVideo: Schema<boolean, boolean>;
-    searchResults: Schema<number, number>;
-    imageCount: Schema<number, number>;
-    videoArtifactTtlMs: Schema<number, number>;
-}>, Schemastery.ObjectT<{
-    codexSearch: Schema<boolean, boolean>;
-    codexImages: Schema<boolean, boolean>;
-    codexImageEdits: Schema<boolean, boolean>;
-    codexImagesAnyModel: Schema<boolean, boolean>;
-    codexUsage: Schema<boolean, boolean>;
-    codexFast: Schema<boolean, boolean>;
-    grokImagineImage: Schema<boolean, boolean>;
-    grokImagineVideo: Schema<boolean, boolean>;
-    searchResults: Schema<number, number>;
-    imageCount: Schema<number, number>;
-    videoArtifactTtlMs: Schema<number, number>;
-}>>;
+export declare const CAPABILITY_SETTINGS_SCHEMA_JSON: Schema<Schemastery.ObjectS<NoInfer<{
+    codexSearch: Schema<boolean, boolean, "defined">;
+    codexImages: Schema<boolean, boolean, "defined">;
+    codexImageEdits: Schema<boolean, boolean, "defined">;
+    codexImagesAnyModel: Schema<boolean, boolean, "defined">;
+    codexUsage: Schema<boolean, boolean, "defined">;
+    codexFast: Schema<boolean, boolean, "defined">;
+    grokImagineImage: Schema<boolean, boolean, "defined">;
+    grokImagineVideo: Schema<boolean, boolean, "defined">;
+    searchResults: Schema<number, number, "defined">;
+    imageCount: Schema<number, number, "defined">;
+    videoArtifactTtlMs: Schema<number, number, "defined">;
+}>>, Schemastery.ObjectT<NoInfer<{
+    codexSearch: Schema<boolean, boolean, "defined">;
+    codexImages: Schema<boolean, boolean, "defined">;
+    codexImageEdits: Schema<boolean, boolean, "defined">;
+    codexImagesAnyModel: Schema<boolean, boolean, "defined">;
+    codexUsage: Schema<boolean, boolean, "defined">;
+    codexFast: Schema<boolean, boolean, "defined">;
+    grokImagineImage: Schema<boolean, boolean, "defined">;
+    grokImagineVideo: Schema<boolean, boolean, "defined">;
+    searchResults: Schema<number, number, "defined">;
+    imageCount: Schema<number, number, "defined">;
+    videoArtifactTtlMs: Schema<number, number, "defined">;
+}>>, "plain">;
 export type CapabilitySettingsSchemaType = typeof CapabilitySettingsSchema;
 /** Revision-bearing, secret-free snapshot used for CAS writes and UI. */
 export interface CapabilitySettingsSnapshot {

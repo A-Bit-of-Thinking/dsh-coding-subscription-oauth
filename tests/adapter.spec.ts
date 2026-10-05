@@ -362,11 +362,31 @@ describe("createCodingOAuthAdapter model discovery", () => {
 	});
 
 	it("injects Fast routing only on the Fast profile while keeping native wire identity", async () => {
-		const attachmentPolicies: Array<{ maxPixels?: number; maxBytes?: number }> = [];
+		const attachmentPolicies: Array<{ width?: number; height?: number; maxPixels?: number; maxBytes?: number }> = [];
 		const attachments = {
-			readImageRequest: async (_ref: unknown, policy: { maxPixels?: number; maxBytes?: number }) => {
+			readImageRequest: async (
+				_ref: unknown,
+				policy: { width?: number; height?: number; maxPixels?: number; maxBytes?: number },
+			) => {
 				attachmentPolicies.push(policy);
-				return { type: "image", data: new Uint8Array([137, 80, 78, 71]), mediaType: "image/png" };
+				// `RequestImageAttachment` carries the encoded request byte length
+				// and dimensions. Kernel dsh-llm-pi-ai 0.2.0-rc.2 enforces the
+				// route's `maxRequestImageBytes` by summing `bytes` through
+				// `base64Length`, so a fixture without them yields NaN and trips
+				// the offload guard. Four bytes of PNG stand in for one 1x1 image.
+				return {
+					type: "image",
+					variantId: "attachment-policy-variant",
+					attachment: { attachmentId: AttachmentId("attachment-policy"), mediaType: "image/png" },
+					data: new Uint8Array([137, 80, 78, 71]),
+					mediaType: "image/png",
+					bytes: 4,
+					width: 1,
+					height: 1,
+					depth: "uchar",
+					space: "srgb",
+					hasAlpha: false,
+				};
 			},
 		};
 		const dir = await mkdtemp(join(tmpdir(), "dsh-coding-oauth-fast-stream-"));
@@ -467,8 +487,8 @@ describe("createCodingOAuthAdapter model discovery", () => {
 			service_tier: "priority",
 		});
 		expect(attachmentPolicies).toEqual([
-			{ maxPixels: 2048 * 2048, maxBytes: 1024 * 1024 },
-			{ maxPixels: 2048 * 2048, maxBytes: 1024 * 1024 },
+			{ width: 1, height: 1, maxBytes: 1024 * 1024 },
+			{ width: 1, height: 1, maxBytes: 1024 * 1024 },
 		]);
 		const replayState = {
 			response: {

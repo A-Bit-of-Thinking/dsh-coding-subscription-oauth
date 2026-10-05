@@ -3,7 +3,7 @@
  * @module dsh-coding-subscription-oauth/gateway-backend
  */
 
-import type { Api, Context, Message, Model, ThinkingLevel, Tool } from "@earendil-works/pi-ai";
+import type { Api, Context, JsonObject, Message, Model, ThinkingLevel, Tool } from "@earendil-works/pi-ai";
 import {
 	type GatewayChatMessage,
 	type GatewayCompletionRequest,
@@ -166,7 +166,7 @@ export function assistantReplay(message: GatewayChatMessage): Message {
 	const content: Array<
 		| { type: "text"; text: string }
 		| { type: "thinking"; thinking: string }
-		| { type: "toolCall"; id: string; name: string; arguments: Record<string, unknown> }
+		| { type: "toolCall"; id: string; name: string; arguments: JsonObject }
 	> = [];
 	const needsPlaceholder = message.tool_calls !== undefined && message.tool_calls.length > 0;
 	const reasoning = message.reasoning_content ?? (needsPlaceholder ? "" : undefined);
@@ -202,12 +202,40 @@ function toPiTool(tool: GatewayTool): Tool {
 	};
 }
 
-function parseToolArguments(raw: string): Record<string, unknown> {
+/**
+ * Coerce parsed tool arguments into the strict `JsonObject` shape pi-ai 0.87+
+ * demands on `ToolCall.arguments` (it was `Record<string, any>` through 0.84).
+ * The gateway parses untrusted client JSON, so anything that is not a JSON
+ * value is dropped rather than smuggled through the type boundary; a value
+ * that is not a plain object is wrapped under `value` exactly as before.
+ */
+function toJsonObject(value: Record<string, unknown>): JsonObject {
+	const out: Record<string, JsonObject[string]> = {};
+	for (const [key, entry] of Object.entries(value)) {
+		if (isJsonValue(entry)) out[key] = entry;
+	}
+	return out as JsonObject;
+}
+
+function isJsonValue(value: unknown): value is JsonObject[string] {
+	if (value === null) return true;
+	const kind = typeof value;
+	if (kind === "string" || kind === "number" || kind === "boolean") return true;
+	if (Array.isArray(value)) return value.every(isJsonValue);
+	if (kind === "object") return Object.values(value as Record<string, unknown>).every(isJsonValue);
+	return false;
+}
+
+function parseToolArguments(raw: string): JsonObject {
 	try {
 		const value = JSON.parse(raw) as unknown;
-		return typeof value === "object" && value !== null && !Array.isArray(value)
-			? (value as Record<string, unknown>)
-			: { value };
+		if (typeof value === "object" && value !== null && !Array.isArray(value)) {
+			return toJsonObject(value as Record<string, unknown>);
+		}
+		// A parsed non-object (array or scalar) is already a JSON value and keeps
+		// its historical `{ value }` wrapper; a parse result that is neither
+		// falls back to the raw string.
+		return isJsonValue(value) ? { value } : { value: raw };
 	} catch {
 		return { value: raw };
 	}

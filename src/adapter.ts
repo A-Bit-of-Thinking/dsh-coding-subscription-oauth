@@ -144,7 +144,10 @@ function profile(
 		modelErrors: new Map(),
 		...REQUEST_IMAGE_POLICY,
 		...(headers === undefined ? {} : { headers }),
-		piProvider,
+		// `piProvider` is optional on the resolved profile and the seam enables
+		// `exactOptionalPropertyTypes`: an absent provider must omit the key
+		// rather than carry an explicit `undefined`.
+		...(piProvider === undefined ? {} : { piProvider }),
 	};
 }
 

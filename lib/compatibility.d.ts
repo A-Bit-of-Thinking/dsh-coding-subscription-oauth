@@ -22,22 +22,22 @@ export interface DshCompatibility {
     readonly diagnostics: readonly string[];
 }
 export declare const DSH_EXACT_BOM: Readonly<{
-    readonly "@deepseek-ai/cordis": "4.0.1";
-    readonly "@deepseek-ai/dsh-atomic-write": "0.1.1-rc.2";
-    readonly "@deepseek-ai/dsh-attachment": "0.1.1-rc.2";
-    readonly "@deepseek-ai/dsh-client-locale": "0.1.1-rc.2";
-    readonly "@deepseek-ai/dsh-client-ui-settings": "0.1.1-rc.2";
-    readonly "@deepseek-ai/dsh-client-ui-slots": "0.1.1-rc.2";
-    readonly "@deepseek-ai/dsh-client-web": "0.1.1-rc.2";
-    readonly "@deepseek-ai/dsh-credentials": "0.1.1-rc.2";
-    readonly "@deepseek-ai/dsh-home-paths": "0.1.1-rc.2";
-    readonly "@deepseek-ai/dsh-host-webserver": "0.1.1-rc.2";
-    readonly "@deepseek-ai/dsh-invariants": "0.1.1-rc.2";
-    readonly "@deepseek-ai/dsh-llm": "0.1.1-rc.2";
-    readonly "@deepseek-ai/dsh-llm-pi-ai": "0.1.1-rc.2";
-    readonly "@deepseek-ai/dsh-tools": "0.1.1-rc.2";
-    readonly "@deepseek-ai/schemastery": "3.18.1";
-    readonly "@earendil-works/pi-ai": "0.84.2";
+    readonly "@deepseek-ai/cordis": "4.0.4";
+    readonly "@deepseek-ai/dsh-atomic-write": "0.2.0-rc.2";
+    readonly "@deepseek-ai/dsh-attachment": "0.2.0-rc.2";
+    readonly "@deepseek-ai/dsh-client-locale": "0.2.0-rc.2";
+    readonly "@deepseek-ai/dsh-client-ui-settings": "0.2.0-rc.2";
+    readonly "@deepseek-ai/dsh-client-ui-slots": "0.2.0-rc.2";
+    readonly "@deepseek-ai/dsh-client-web": "0.2.0-rc.2";
+    readonly "@deepseek-ai/dsh-credentials": "0.2.0-rc.2";
+    readonly "@deepseek-ai/dsh-home-paths": "0.2.0-rc.2";
+    readonly "@deepseek-ai/dsh-host-webserver": "0.2.0-rc.2";
+    readonly "@deepseek-ai/dsh-invariants": "0.2.0-rc.2";
+    readonly "@deepseek-ai/dsh-llm": "0.2.0-rc.2";
+    readonly "@deepseek-ai/dsh-llm-pi-ai": "0.2.0-rc.2";
+    readonly "@deepseek-ai/dsh-tools": "0.2.0-rc.2";
+    readonly "@deepseek-ai/schemastery": "3.18.4";
+    readonly "@earendil-works/pi-ai": "0.87.1";
     readonly react: "18.3.1";
     readonly "react-dom": "18.3.1";
 }>;

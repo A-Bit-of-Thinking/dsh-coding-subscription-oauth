@@ -3,6 +3,6 @@ allowBuilds:
   esbuild: true
   protobufjs: false
 overrides:
-  '@earendil-works/pi-ai': 0.84.2
+  '@earendil-works/pi-ai': 0.87.1
 minimumReleaseAgeExclude:
   - dsh-coding-oauth-core@0.1.2

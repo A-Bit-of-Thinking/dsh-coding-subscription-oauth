@@ -1,4 +1,5 @@
 import type { AuthContext } from "@earendil-works/pi-ai";
+import { normalizeContext } from "@earendil-works/pi-ai";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
 	CODEX_ROUTING_HINT_HEADER,
@@ -72,7 +73,9 @@ describe("OAuth request providers", () => {
 		const model = provider.getModels()[0]!;
 		const stream = provider.streamSimple(
 			model,
-			{ messages: [] },
+			// pi-ai 0.87+ brands the provider-facing context: only
+			// `normalizeContext()` produces a `TranscriptContext`.
+			normalizeContext({ messages: [] }),
 			{
 				apiKey: "kimi-access-token",
 				headers: { Authorization: "Bearer kimi-access-token" },
