@@ -7,6 +7,19 @@
 
 **v0.8.5** · formerly `dsh-grok-build`
 
+> ### ⚠️ This is a FORK — rebased for DSH `0.2.0-rc.2`
+>
+> Upstream (`lninghaha/dsh-coding-subscription-oauth`) pins its dependency BOM to the
+> DSH `0.1.1-rc.2` kernel, which the official **0.2.0-rc.2** runtime refuses at profile
+> load — the LLM route is then never registered.
+>
+> This fork rebases it onto **0.2.0-rc.2** (cordis 4.0.4, schemastery 3.18.4,
+> `@earendil-works/pi-ai` 0.87.1) and fixes four real API breaks found by the typecheck.
+>
+> **📄 Before changing anything, read [`HANDOFF.md`](HANDOFF.md)** — it documents the
+> exact rebase procedure for a future DSH release, the traps already hit, and how to
+> install the plugin.
+
 **Coding-subscription OAuth for [DeepSeek Harness](https://github.com/deepseek-ai/dsh).** Use SuperGrok / X Premium (Grok Build), ChatGPT Plus/Pro (Codex), Kimi Code, Claude Pro/Max and Google Antigravity inside DSH — without a second API-key bill and **without pasting any token into chat.**
 
 [![License](https://img.shields.io/badge/license-Apache--2.0-green.svg)](LICENSE)
