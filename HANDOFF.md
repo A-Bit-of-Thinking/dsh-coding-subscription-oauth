@@ -39,10 +39,11 @@ Korayl (`openrouter1` / `@preset/dsh-ds-v4-flash-deepseek`) ne se résout plus.
 | | |
 |---|---|
 | Dépôt local | `C:\Users\Korayl\Desktop\GitHub\dsh-coding-subscription-oauth` |
-| Branche de travail | `rebase/dsh-0.2.0-rc.2` |
-| Amont | `lninghaha/dsh-coding-subscription-oauth`, commit `ef93a2f`, tag `v0.8.5` |
+| Dépôt distant | `origin` = `A-Bit-of-Thinking/dsh-coding-subscription-oauth` (le fork) |
+| Amont | `upstream` = `lninghaha/dsh-coding-subscription-oauth`, commit `ef93a2f`, tag `v0.8.5` |
+| Branche | `main` (contient l'amont + les commits du fork) |
 | Noyau cible | DeepSeek Harness **0.2.0-rc.2** (cordis 4.0.4, schemastery 3.18.4, pi-ai 0.87.1) |
-| Version du paquet | **0.8.5** (non renumérotée — voir §7) |
+| Version du paquet | **0.8.5** (non renumérotée — voir §8) |
 
 ### Vérifications passées
 
@@ -50,9 +51,10 @@ Korayl (`openrouter1` / `@preset/dsh-ds-v4-flash-deepseek`) ne se résout plus.
 |---|---|
 | Barrière BOM (`pnpm run check:bom`) | `verified exact DSH BOM (18 packages)` |
 | `pnpm run typecheck` | 0 erreur |
-| `pnpm run test` | 61 fichiers, 593 réussis, 5 ignorés, **0 échec** |
-| `pnpm run lint` | 176 fichiers, 0 erreur (9 infos préexistantes) |
-| `pnpm run release:build` | `promoted and verified …\lib (140 files)` |
+| `pnpm run test` | 62 fichiers, 611 réussis, 5 ignorés, **0 échec** |
+| `pnpm run lint` | 178 fichiers, 0 erreur (9 infos préexistantes) |
+| `pnpm run release:build` | `promoted and verified …\lib (142 files)` |
+| Installation depuis GitHub | vérifiée dans un dossier isolé : BOM correct, `lib/index.js` et `lib/client.js` présents |
 
 ---
 
@@ -240,7 +242,112 @@ pour laquelle le fork a été rebasé). Installer ce fork dans une application a
 
 ---
 
-## 6. Pièges déjà rencontrés — ne pas les redécouvrir
+## 6. Ajouter un modèle dès sa sortie — `src/model-additions.ts`
+
+### Le problème que ce fichier résout
+
+Le catalogue de modèles ne vient pas de ce dépôt : il vient de
+`@earendil-works/pi-ai`, qui le stocke en **JSON statique**
+(`dist/providers/data/*.json`) et ne le met à jour qu'à ses propres
+publications. Le plugin fait :
+
+```ts
+const provider = definition.providerFactory();
+this.catalog = [...provider.getModels()];   // instantané figé au démarrage
+```
+
+Un modèle publié par OpenAI ou Anthropic reste donc **invisible** jusqu'à ce
+que pi-ai publie une nouvelle version — puis qu'on remonte la dépendance, qu'on
+reconstruise et qu'on réinstalle. Plusieurs jours de latence pour une ligne de
+JSON.
+
+`src/model-additions.ts` supprime cette attente : il ajoute des modèles au
+catalogue **depuis ce dépôt**, sans dépendre de pi-ai.
+
+### La procédure, pas à pas
+
+**1. Identifier un modèle de référence.** Le nouveau modèle est presque toujours
+un variant d'un modèle déjà présent. Vérifier les ids connus :
+
+```powershell
+node --input-type=module -e "
+import { openaiCodexProvider } from '@earendil-works/pi-ai/providers/openai-codex';
+console.log(openaiCodexProvider().getModels().map(m => m.id).join('\n'));
+"
+```
+
+Remplacer `openai-codex` par `anthropic` (Claude) ou `kimi-coding` (Kimi) ; les
+sous-chemins sont `@earendil-works/pi-ai/providers/<nom>`.
+
+**2. Ajouter l'entrée** dans le tableau du bon fournisseur :
+
+```ts
+[MODEL_ADDITION_PROVIDERS.codex]: [
+    { id: "gpt-6.1-sol", name: "GPT-6.1 Sol", extends: "gpt-6-sol" },
+],
+```
+
+`extends` recopie **toutes** les caractéristiques du modèle de référence :
+`api`, `provider`, `baseUrl`, `reasoning`, `input`, `cost`, `contextWindow`,
+`maxTokens`, `thinkingLevelMap`, `compat`, `inputLimits`. Seuls `id` et les
+champs précisés sont remplacés.
+
+**3. Vérifier.**
+
+```powershell
+node <pnpm-embarque> run typecheck
+node <pnpm-embarque> test
+node <pnpm-embarque> run lint
+node <pnpm-embarque> run release:build
+```
+
+**4. Commiter et pousser** — `lib/` doit être reconstruit avant le commit.
+
+### Règles à respecter
+
+| Règle | Pourquoi |
+|---|---|
+| `extends` doit nommer un modèle **existant du même fournisseur** | Sinon l'entrée est écartée avec un diagnostic ; le test le signale |
+| Ne pas deviner `contextWindow` ni les niveaux de raisonnement | Une fenêtre déclarée **trop grande** provoque des erreurs d'API ; **trop petite** tronque sans le dire. Vérifier à la source officielle. |
+| Une entrée dont l'`id` existe déjà **remplace** celle du catalogue | C'est le moyen de corriger une métadonnée erronée de pi-ai |
+| Pour un modèle sans équivalent connu, omettre `extends` | Il faut alors fournir `api`, `provider`, `baseUrl`, `reasoning`, `input`, `cost`, `contextWindow`, `maxTokens` |
+| Après une montée de pi-ai, revérifier ces entrées | pi-ai les fournit peut-être désormais nativement ; l'entrée devient redondante |
+
+### Vérifier que le câblage fonctionne toujours
+
+`tests/model-additions.spec.ts` contient quatre tests de **câblage réel** : ils
+injectent une entrée temporaire dans `MODEL_ADDITIONS`, appellent la vraie
+fabrique (`CODEX_OAUTH_PROVIDER.providerFactory()`) et vérifient que le modèle
+apparaît dans le catalogue réel. Si quelqu'un retire `withAdditions` de
+`oauth-providers.ts`, ces tests échouent.
+
+### Piste non exploitée : le catalogue Codex en direct
+
+`src/codex-model-capabilities.ts` interroge **déjà** un endpoint qui renvoie la
+liste réelle des modèles du compte :
+
+```ts
+export const CODEX_MODELS_URL = "https://chatgpt.com/backend-api/codex/models";
+export const DEFAULT_CODEX_CLIENT_VERSION = "0.144.0";
+```
+
+Mais il ne s'en sert que pour les **service tiers** de la route rapide
+(`parseCodexModelCapabilities` lit `slug`/`id` et `service_tiers`), **pas** pour
+alimenter le catalogue. C'est une occasion manquée : cet endpoint pourrait
+**détecter** les nouveaux ids et les signaler, ou même les ajouter
+automatiquement en clonant un modèle voisin.
+
+Côté Anthropic, `GET /v1/models` est **documenté et stable**, mais ne renvoie
+que des ids et des noms — pas les métadonnées dont le plugin a besoin. Une
+détection resterait donc à compléter par une entrée explicite.
+
+Ces deux pistes n'ont **pas** été implémentées : Korayl a préféré la solution
+manuelle ci-dessus, plus simple et sans dépendance réseau. À reprendre si la
+cadence des sorties rend l'édition manuelle pénible.
+
+---
+
+## 7. Pièges déjà rencontrés — ne pas les redécouvrir
 
 | Piège | Détail |
 |---|---|
@@ -253,21 +360,22 @@ pour laquelle le fork a été rebasé). Installer ce fork dans une application a
 
 ---
 
-## 7. Points ouverts
+## 8. Points ouverts
 
 1. **Version du paquet non renumérotée** — reste `0.8.5`, identique à l'amont. Pour
    distinguer le fork, envisager `0.9.0` (ou un suffixe `-fork.1`).
 2. **Non testé en conditions réelles** — les 593 tests valident la logique contre des
    fixtures, pas contre le noyau officiel en fonctionnement. Le premier chargement réel
    reste à faire, et c'est lui qui validera définitivement le rebasage.
-3. **Catalogue de modèles** — le plan initial prévoyait de mettre à jour le catalogue et
-   la lecture en direct des `reasoning_efforts` (apparition de modèles récents comme
-   `grok-4.6` en `xhigh`). **Non traité dans ce rebasage** : celui-ci s'est limité à la
-   compatibilité. À reprendre si Korayl constate des modèles manquants.
+3. **Catalogue de modèles** — traité par `src/model-additions.ts` (section 6), qui
+   permet d'ajouter un modèle dès sa sortie sans attendre une publication de
+   pi-ai. Le fichier est **vide par défaut** : aucun modèle n'est ajouté tant que
+   Korayl ne le demande pas. La lecture en direct des `reasoning_efforts` et la
+   détection automatique des nouveaux ids restent, elles, non implémentées.
 
 ---
 
-## 8. Commandes utiles (récapitulatif)
+## 9. Commandes utiles (récapitulatif)
 
 ```powershell
 $repo = "$env:USERPROFILE\Desktop\GitHub\dsh-coding-subscription-oauth"
@@ -283,7 +391,7 @@ node $pnpm run release:build      # régénère lib/
 
 ---
 
-## 9. Contexte Korayl
+## 10. Contexte Korayl
 
 - Ne connaît pas GitHub : **le guider pas à pas**, une seule étape à la fois, avec
   confirmation avant de continuer. Préférer **GitHub Desktop** au terminal.

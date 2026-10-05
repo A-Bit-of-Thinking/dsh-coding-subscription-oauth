@@ -22,6 +22,7 @@ import {
 	KIMI_CODE_OAUTH_ROUTE,
 	KIMI_PI_PROVIDER,
 } from "./ids.ts";
+import { withModelAdditions } from "./model-additions.ts";
 
 export type SubscriptionProviderSlug = Exclude<CodingOAuthProviderSlug, "grok">;
 export type SubscriptionLoginMethod = "browser" | "device";
@@ -94,9 +95,19 @@ function asProvider(factory: () => Provider): () => Provider<Api> {
 	return factory as () => Provider<Api>;
 }
 
-const createCodexProvider = asProvider(openaiCodexProvider);
-const createKimiProvider = asProvider(kimiCodingProvider);
-const createClaudeProvider = asProvider(anthropicProvider);
+/**
+ * Wrap a pi-ai provider factory so the models declared in
+ * {@link ./model-additions.ts} join its catalog. Both the session's frozen
+ * catalog and the request-time provider are built through these factories, so
+ * an added id survives selection filtering and reaches the wire.
+ */
+function withAdditions(factory: () => Provider<Api>, providerId: string): () => Provider<Api> {
+	return () => withModelAdditions(factory(), providerId);
+}
+
+const createCodexProvider = withAdditions(asProvider(openaiCodexProvider), CODEX_PI_PROVIDER);
+const createKimiProvider = withAdditions(asProvider(kimiCodingProvider), KIMI_PI_PROVIDER);
+const createClaudeProvider = withAdditions(asProvider(anthropicProvider), CLAUDE_PI_PROVIDER);
 
 export const CODEX_OAUTH_PROVIDER: OAuthProviderDefinition = {
 	slug: "codex",
