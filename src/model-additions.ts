@@ -75,8 +75,90 @@ export interface ModelAddition extends Partial<Model<Api>> {
  * d'une assertion, puis la restaure.
  */
 export const MODEL_ADDITIONS: Record<string, readonly ModelAddition[]> = {
-	[MODEL_ADDITION_PROVIDERS.codex]: [],
-	[MODEL_ADDITION_PROVIDERS.claude]: [],
+	[MODEL_ADDITION_PROVIDERS.codex]: [
+		{
+			id: "gpt-6.1-sol",
+			name: "GPT-6.1 Sol",
+			extends: "gpt-6-sol",
+			/**
+			 * OpenAI documente explicitement, pour ce modele precis, que « none »
+			 * et « minimal » ne sont PAS supportes, alors que le catalogue pi-ai
+			 * de `gpt-6-sol` mappe `off` vers « none ». Envoyer « none » a ce
+			 * slug risquerait un 400.
+			 *
+			 * `off: null` signifie « propose, mais n'envoie rien » : c'est la
+			 * convention deja utilisee dans ce depot pour un modele incapable de
+			 * desactiver son raisonnement (voir `grokBuildReasoningMap`). Le
+			 * modele retombe alors sur son effort par defaut (medium), sans
+			 * qu'aucune requete ne puisse echouer.
+			 *
+			 * `minimal` reste mappe vers « low », qui est supporte.
+			 *
+			 * FENETRE DE CONTEXTE — heritee a 272 000, volontairement.
+			 * La page API publique d'OpenAI annonce 1 050 000, mais le backend
+			 * Codex OAuth (chatgpt.com/backend-api), celui que ce plugin
+			 * utilise, annonce 272 000 — la valeur que pi-ai retient pour TOUS
+			 * les modeles Codex. Un agent tiers a mesure en direct, le
+			 * 2026-09-29, que ~918 000 tokens d'entree passent et que ~931 000
+			 * sont refuses : la vraie limite est proche des 922 000 annonces par
+			 * la page modele, pas des 272 000.
+			 *
+			 * On garde 272 000 parce que (1) c'est ce que le backend annonce,
+			 * (2) cela ne peut jamais faire echouer une requete, et (3) un
+			 * contexte plus large fait consommer l'abonnement BEAUCOUP plus vite.
+			 * Pour l'activer deliberement, ajouter `contextWindow: 900_000` ici.
+			 *
+			 * Tarifs : herites, et ils correspondent EXACTEMENT a la grille
+			 * publiee pour gpt-6.1-sol (entree 2 $, sortie 10 $, ecriture de
+			 * cache 2,5 $ par million ; palier a 272 000 tokens doubles).
+			 */
+			thinkingLevelMap: {
+				off: null,
+				minimal: "low",
+				low: "low",
+				medium: "medium",
+				high: "high",
+				xhigh: "xhigh",
+				max: "max",
+			},
+		},
+	],
+	[MODEL_ADDITION_PROVIDERS.claude]: [
+		{
+			id: "claude-sonnet-5-5",
+			name: "Claude Sonnet 5.5",
+			extends: "claude-sonnet-5",
+			/**
+			 * FENETRE DE CONTEXTE ET SORTIE — heritees, et VERIFIEES.
+			 * La fiche modele officielle (Amazon Bedrock, modele lance le
+			 * 2026-09-28) annonce exactement 1M de contexte et 128K de sortie,
+			 * soit les valeurs que pi-ai declare deja pour `claude-sonnet-5`.
+			 * Entrees texte + image : identiques. Rien a surcharger.
+			 *
+			 * NIVEAUX DE RAISONNEMENT — surcharges.
+			 * La meme fiche annonce « adaptive thinking » actif par defaut et un
+			 * effort configurable de low a max. L'entree pi-ai de
+			 * `claude-sonnet-5` n'expose que xhigh et max, ce qui priverait
+			 * l'utilisateur des niveaux intermediaires.
+			 *
+			 * La table ci-dessous reprend celle de `claude-opus-5-5`, le Claude
+			 * le plus recent du catalogue et de la meme generation : c'est la
+			 * convention en vigueur, et les valeurs de cablage « low »,
+			 * « medium » et « high » y sont deja utilisees avec succes.
+			 * `minimal` est declare `null` : le normalisateur l'ecarte, donc le
+			 * niveau n'est pas propose, conformement a la fiche.
+			 */
+			thinkingLevelMap: {
+				off: null,
+				minimal: null,
+				low: "low",
+				medium: "medium",
+				high: "high",
+				xhigh: "xhigh",
+				max: "max",
+			},
+		},
+	],
 	[MODEL_ADDITION_PROVIDERS.kimi]: [],
 };
 

@@ -207,11 +207,13 @@ describe("cablage dans les fournisseurs OAuth", () => {
 	}
 
 	it("sans ajout configure, le catalogue Codex reste exactement celui de pi-ai", () => {
-		const expected = CODEX_OAUTH_PROVIDER.providerFactory()
-			.getModels()
-			.map((model) => model.id);
-		expect(expected.length).toBeGreaterThan(0);
-		expect(expected).toContain("gpt-6-sol");
+		withTemporaryAdditions(CODEX, [], () => {
+			const models = CODEX_OAUTH_PROVIDER.providerFactory().getModels();
+			const ids = models.map((model) => model.id);
+			expect(ids.length).toBeGreaterThan(0);
+			expect(ids).toContain("gpt-6-sol");
+			expect(ids).not.toContain("gpt-6.1-sol");
+		});
 	});
 
 	it("un ajout Codex herite apparait dans le catalogue du fournisseur reel", () => {
@@ -244,8 +246,76 @@ describe("cablage dans les fournisseurs OAuth", () => {
 		);
 	});
 
-	it("restaure la table apres le test", () => {
-		expect(MODEL_ADDITIONS[CODEX]).toEqual([]);
-		expect(MODEL_ADDITIONS[MODEL_ADDITION_PROVIDERS.claude]).toEqual([]);
+	it("restaure la table apres chaque test", () => {
+		const codex = MODEL_ADDITIONS[CODEX] ?? [];
+		const claude = MODEL_ADDITIONS[MODEL_ADDITION_PROVIDERS.claude] ?? [];
+		expect(codex.map((entry) => entry.id)).toEqual(["gpt-6.1-sol"]);
+		expect(claude.map((entry) => entry.id)).toEqual(["claude-sonnet-5-5"]);
+	});
+});
+
+/**
+ * Les entrees livrees. Elles doivent rester resolvables contre le vrai
+ * catalogue : si pi-ai renomme ou retire un modele de reference, ces tests
+ * echouent et signalent qu'une entree est devenue orpheline.
+ */
+describe("entrees livrees", () => {
+	it("gpt-6.1-sol herite de gpt-6-sol et survit au catalogue reel", () => {
+		const models = CODEX_OAUTH_PROVIDER.providerFactory().getModels();
+		const added = models.find((model) => model.id === "gpt-6.1-sol");
+		const base = models.find((model) => model.id === "gpt-6-sol");
+
+		expect(base).toBeDefined();
+		expect(added).toBeDefined();
+		expect(added?.name).toBe("GPT-6.1 Sol");
+		expect(added?.api).toBe("openai-codex-responses");
+		expect(added?.provider).toBe(MODEL_ADDITION_PROVIDERS.codex);
+		expect(added?.input).toEqual(["text", "image"]);
+		expect(added?.maxTokens).toBe(128_000);
+
+		// La fenetre est volontairement celle que le backend Codex annonce.
+		expect(added?.contextWindow).toBe(272_000);
+
+		// « none » n'est pas supporte par ce slug : off doit valoir null.
+		const levels = added?.thinkingLevelMap as Record<string, unknown> | undefined;
+		expect(levels?.off).toBeNull();
+		expect(levels?.xhigh).toBe("xhigh");
+		expect(levels?.max).toBe("max");
+	});
+
+	it("claude-sonnet-5-5 herite de claude-sonnet-5 avec 1M de contexte", () => {
+		const models = CLAUDE_CODE_OAUTH_PROVIDER.providerFactory().getModels();
+		const added = models.find((model) => model.id === "claude-sonnet-5-5");
+
+		expect(added).toBeDefined();
+		expect(added?.name).toBe("Claude Sonnet 5.5");
+		expect(added?.api).toBe("anthropic-messages");
+		expect(added?.provider).toBe(MODEL_ADDITION_PROVIDERS.claude);
+		expect(added?.input).toEqual(["text", "image"]);
+		// Valeurs confirmees par la fiche modele officielle.
+		expect(added?.contextWindow).toBe(1_000_000);
+		expect(added?.maxTokens).toBe(128_000);
+
+		const levels = added?.thinkingLevelMap as Record<string, unknown> | undefined;
+		expect(levels?.off).toBeNull();
+		expect(levels?.low).toBe("low");
+		expect(levels?.medium).toBe("medium");
+		expect(levels?.high).toBe("high");
+		expect(levels?.xhigh).toBe("xhigh");
+		expect(levels?.max).toBe("max");
+	});
+
+	it("aucune entree livree n'est ecartee", () => {
+		const codexCatalog = CODEX_OAUTH_PROVIDER.providerFactory().getModels();
+		const claudeCatalog = CLAUDE_CODE_OAUTH_PROVIDER.providerFactory().getModels();
+
+		for (const [providerId, catalog] of [
+			[CODEX, codexCatalog],
+			[MODEL_ADDITION_PROVIDERS.claude, claudeCatalog],
+		] as const) {
+			const { models, diagnostics } = resolveModelAdditions(providerId, catalog);
+			expect(diagnostics).toEqual([]);
+			expect(models).toHaveLength(MODEL_ADDITIONS[providerId]?.length ?? 0);
+		}
 	});
 });
