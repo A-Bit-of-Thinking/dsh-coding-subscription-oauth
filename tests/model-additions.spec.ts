@@ -250,7 +250,7 @@ describe("cablage dans les fournisseurs OAuth", () => {
 		const codex = MODEL_ADDITIONS[CODEX] ?? [];
 		const claude = MODEL_ADDITIONS[MODEL_ADDITION_PROVIDERS.claude] ?? [];
 		expect(codex.map((entry) => entry.id)).toEqual(["gpt-6.1-sol"]);
-		expect(claude.map((entry) => entry.id)).toEqual(["claude-sonnet-5-5"]);
+		expect(claude.map((entry) => entry.id)).toEqual(["claude-sonnet-5-5", "claude-haiku-5-5"]);
 	});
 });
 

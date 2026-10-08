@@ -270,6 +270,26 @@ describe("CapabilitySettingsController without a provider", () => {
 });
 
 describe("CapabilitySettingsController with a fake provider", () => {
+	it("fails closed for a write service with no matching namespace descriptor", async () => {
+		let writes = 0;
+		const controller = createCapabilitySettingsController({
+			settings: {
+				writable: true,
+				describe: () => [],
+				update: async () => {
+					writes++;
+				},
+				replace: async () => {
+					writes++;
+				},
+			},
+		});
+		expect(controller.snapshot().writable).toBe(false);
+		await expect(controller.patch({ codexSearch: true }, 0)).rejects.toMatchObject({ code: "SETTINGS_READ_ONLY" });
+		await expect(controller.replace({}, 0)).rejects.toMatchObject({ code: "SETTINGS_READ_ONLY" });
+		expect(writes).toBe(0);
+	});
+
 	it("fails loudly when the settings namespace cannot be registered", () => {
 		const failure = new Error("duplicate settings namespace");
 		const settings: CapabilitySettingsService = {

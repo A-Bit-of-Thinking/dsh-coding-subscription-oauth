@@ -1,5 +1,8 @@
 
 
+> [!WARNING]
+> **원본 프로젝트의 과거 문서:** 이 문서는 원본 프로젝트에서 이어받은 과거 내용이며 DSH **0.2.0-rc.2**용 이 포크의 현재 지침이 아니므로, 최신 [README.md](<README.md>), [README.fr.md](<README.fr.md>), [INSTALL.md](<INSTALL.md>)를 참고하세요.
+
 <!-- banner -->
 <div align="center">
 

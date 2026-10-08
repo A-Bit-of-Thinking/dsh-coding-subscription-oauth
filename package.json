@@ -1,6 +1,6 @@
 {
   "name": "dsh-coding-subscription-oauth",
-  "description": "DeepSeek Harness coding-subscription OAuth: SuperGrok/Grok Build, ChatGPT Plus Codex, Kimi Code, Claude Code. Fixes AUTH API key is invalid, INVALID_REPLAY_STATE, grok-4.6 xhigh, Kimi Bearer vs x-api-key.",
+  "description": "Community fork for DSH 0.2.0-rc.2: coding-subscription OAuth, account and model management, OpenCode Go, optional capabilities and a local gateway.",
   "version": "0.8.5",
   "publishConfig": {
     "access": "public",
@@ -8,10 +8,10 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/lninghaha/dsh-coding-subscription-oauth.git"
+    "url": "git+https://github.com/A-Bit-of-Thinking/dsh-coding-subscription-oauth.git"
   },
-  "bugs": "https://github.com/lninghaha/dsh-coding-subscription-oauth/issues",
-  "homepage": "https://github.com/lninghaha/dsh-coding-subscription-oauth#readme",
+  "bugs": "https://github.com/A-Bit-of-Thinking/dsh-coding-subscription-oauth/issues",
+  "homepage": "https://github.com/A-Bit-of-Thinking/dsh-coding-subscription-oauth#readme",
   "keywords": [
     "deepseek-harness",
     "dsh-plugin",

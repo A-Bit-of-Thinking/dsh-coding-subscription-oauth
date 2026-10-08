@@ -2,7 +2,26 @@
 
 All notable changes to `dsh-coding-subscription-oauth` are documented here, following the release loop in `docs/00-project-rules.md`. Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/). Versioning follows [SemVer](https://semver.org/).
 
-## Unreleased
+## Unreleased — community fork
+
+### Changed
+
+- Target the exact DSH 0.2.0-rc.2 BOM and adapt the host/pi-ai contracts; package version remains 0.8.5 (no fork-specific npm publication).
+- Connected subscription services are presented first in stable order; OpenCode Go uses a compact, initially collapsed account card.
+- Capability settings bridge the modern host's volatile plugin configuration with revision-checked, namespace-owned writes.
+- Replace the English/French README and installation guide with fork-specific instructions, correct repository metadata and the in-app documentation link, and make public maintenance notes machine-independent.
+
+### Fixed
+
+- Local gateway Grok streaming uses the Grok Build request provider, normalized context and resolved OAuth token, retaining the CLI fingerprint headers instead of looking up an unregistered inference provider in the login collection.
+
+### Added
+
+- Reviewed model additions for GPT-6.1 Sol, Claude Sonnet 5.5 and Claude Haiku 5.5. Haiku uses adaptive thinking and omits incompatible sampling parameters; API price estimates use the conservative long-context tier.
+
+### Privacy
+
+- Remove operator-specific paths/profile notes from current public maintenance documents. This does not remove information from previously published commits.
 
 ## v0.8.5 - 2026-09-15
 

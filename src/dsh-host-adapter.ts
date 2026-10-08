@@ -8,6 +8,8 @@ import {
 	type OwnerAccessMode,
 	resolveCodingOAuthScope,
 } from "dsh-coding-oauth-core";
+import { hasCapabilitySettingsForms } from "./capability-host-settings.ts";
+import type { CapabilitySettingsService } from "./capability-settings.ts";
 import type {
 	CodingOAuthParticipantDiagnosticSource,
 	DshCompatibility,
@@ -61,6 +63,18 @@ function capability(value: unknown, contract: string, methods: readonly string[]
 		return { state: "incompatible", contract, reason: "service shape does not match the verified contract" };
 	}
 	return { state: "available", contract };
+}
+
+function settingsCapability(value: unknown): DshHostCapability {
+	const candidate = record(value);
+	if (
+		candidate !== undefined &&
+		typeof candidate["register"] !== "function" &&
+		hasCapabilitySettingsForms(candidate as CapabilitySettingsService)
+	) {
+		return { state: "available", contract: "settings-forms-v1" };
+	}
+	return capability(value, "settings-register-v1", ["register"]);
 }
 
 function asOwnerRequestPolicy(value: unknown): OwnerRequestPolicy | undefined {
@@ -122,7 +136,7 @@ export function createDshHostAdapter(context: Context): DshHostAdapter {
 		compatibility(options: CompatibilityOptions = {}) {
 			const capabilities: Readonly<Record<string, DshHostCapability>> = {
 				webServer: capability(service(context, "webServer"), "exact-route-v1", ["register"]),
-				settings: capability(service(context, "settings"), "settings-register-v1", ["register"]),
+				settings: settingsCapability(service(context, "settings")),
 				credentials: capability(service(context, "credentials"), "credential-resolver-v1", ["resolve"]),
 				llm: capability(service(context, "llm"), "llm-adapter-registry-v1", ["registerAdapter"]),
 				ownerRequestPolicy: capability(service(context, "ownerRequestPolicy"), "owner-request-policy-v1", [

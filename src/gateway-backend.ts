@@ -4,6 +4,7 @@
  */
 
 import type { Api, Context, JsonObject, Message, Model, ThinkingLevel, Tool } from "@earendil-works/pi-ai";
+import { normalizeContext } from "@earendil-works/pi-ai";
 import {
 	type GatewayChatMessage,
 	type GatewayCompletionRequest,
@@ -263,11 +264,19 @@ async function collectOwnedModels(
 	const owned: OwnedModel[] = [];
 	const grokAuth = await grok.models.getAuth("xai");
 	if (grokAuth?.auth.apiKey) {
+		// The xai collection owns OAuth refresh, not Grok Build inference.
+		const provider = grok.provider();
+		const apiKey = grokAuth.auth.apiKey;
 		for (const model of grok.visibleModels()) {
 			owned.push({
 				owned_by: "grok-build",
 				model,
-				stream: (item, context, options) => grok.models.streamSimple(item, context, options),
+				stream: (item, context, options) =>
+					provider.streamSimple(item, normalizeContext(context), {
+						...options,
+						apiKey,
+						...(provider.headers === undefined ? {} : { headers: provider.headers }),
+					}),
 			});
 		}
 	}

@@ -1,6 +1,7 @@
 import type { Context } from "@deepseek-ai/cordis";
 import { type RetryPolicyConfig } from "@deepseek-ai/dsh-llm";
 import z from "@deepseek-ai/schemastery";
+import { type CapabilitySettingsReference } from "./capability-host-settings.js";
 import { type CapabilitySettingsPatch } from "./capability-settings.js";
 import { type GatewayConfig } from "./gateway-config.js";
 export type { CodingOAuthParticipant, CodingOAuthRuntime, DshHostCapabilities, OwnerRequestPolicy as CoreOwnerRequestPolicy, } from "dsh-coding-oauth-core";
@@ -56,8 +57,8 @@ export interface Config {
      * step refreshes before reuse. Quota exhaustion is never retried.
      */
     retryPolicy?: RetryPolicyConfig;
-    /** Secret-free composition/YAML defaults below live user settings. */
-    capabilities?: CapabilitySettingsPatch;
+    /** Live Config reference; plain composition values remain accepted by apply(). */
+    capabilities?: CapabilitySettingsPatch | CapabilitySettingsReference;
     /** Opt-in isolated local OpenAI-compatible gateway. Default off. */
     gateway?: Partial<GatewayConfig>;
     /** Owner-only request authorization for loopback, SSH tunnels, and trusted HTTPS proxies. */
@@ -71,7 +72,121 @@ export interface Config {
         };
     };
 }
-export declare const Config: z<Config>;
+export declare const Config: z<Schemastery.ObjectS<NoInfer<{
+    proxy: z<string, string, "plain">;
+    proxyKimi: z<boolean, boolean, "defined">;
+    retryPolicy: z<RetryPolicyConfig>;
+    capabilities: z<NoInfer<Schemastery.ObjectS<NoInfer<{
+        codexSearch: z<boolean, boolean, "defined">;
+        codexImages: z<boolean, boolean, "defined">;
+        codexImageEdits: z<boolean, boolean, "defined">;
+        codexImagesAnyModel: z<boolean, boolean, "defined">;
+        codexUsage: z<boolean, boolean, "defined">;
+        codexFast: z<boolean, boolean, "defined">;
+        grokImagineImage: z<boolean, boolean, "defined">;
+        grokImagineVideo: z<boolean, boolean, "defined">;
+        searchResults: z<number, number, "defined">;
+        imageCount: z<number, number, "defined">;
+        videoArtifactTtlMs: z<number, number, "defined">;
+    }>>>, NoInfer<Schemastery.ObjectT<NoInfer<{
+        codexSearch: z<boolean, boolean, "defined">;
+        codexImages: z<boolean, boolean, "defined">;
+        codexImageEdits: z<boolean, boolean, "defined">;
+        codexImagesAnyModel: z<boolean, boolean, "defined">;
+        codexUsage: z<boolean, boolean, "defined">;
+        codexFast: z<boolean, boolean, "defined">;
+        grokImagineImage: z<boolean, boolean, "defined">;
+        grokImagineVideo: z<boolean, boolean, "defined">;
+        searchResults: z<number, number, "defined">;
+        imageCount: z<number, number, "defined">;
+        videoArtifactTtlMs: z<number, number, "defined">;
+    }>>>, "volatile">;
+    gateway: z<Partial<GatewayConfig>>;
+    ownerRequest: z<Schemastery.ObjectS<NoInfer<{
+        loopbackAccessMode: z<"loopback" | "ssh-tunnel", "loopback" | "ssh-tunnel", "plain">;
+        trustedProxy: z<Schemastery.ObjectS<NoInfer<{
+            peers: z<string[], string[], "plain">;
+            origins: z<string[], string[], "plain">;
+            ownerProof: z<string, string, "plain">;
+            csrfToken: z<string, string, "plain">;
+        }>>, Schemastery.ObjectT<NoInfer<{
+            peers: z<string[], string[], "plain">;
+            origins: z<string[], string[], "plain">;
+            ownerProof: z<string, string, "plain">;
+            csrfToken: z<string, string, "plain">;
+        }>>, "plain">;
+    }>>, Schemastery.ObjectT<NoInfer<{
+        loopbackAccessMode: z<"loopback" | "ssh-tunnel", "loopback" | "ssh-tunnel", "plain">;
+        trustedProxy: z<Schemastery.ObjectS<NoInfer<{
+            peers: z<string[], string[], "plain">;
+            origins: z<string[], string[], "plain">;
+            ownerProof: z<string, string, "plain">;
+            csrfToken: z<string, string, "plain">;
+        }>>, Schemastery.ObjectT<NoInfer<{
+            peers: z<string[], string[], "plain">;
+            origins: z<string[], string[], "plain">;
+            ownerProof: z<string, string, "plain">;
+            csrfToken: z<string, string, "plain">;
+        }>>, "plain">;
+    }>>, "plain">;
+}>>, Schemastery.ObjectT<NoInfer<{
+    proxy: z<string, string, "plain">;
+    proxyKimi: z<boolean, boolean, "defined">;
+    retryPolicy: z<RetryPolicyConfig>;
+    capabilities: z<NoInfer<Schemastery.ObjectS<NoInfer<{
+        codexSearch: z<boolean, boolean, "defined">;
+        codexImages: z<boolean, boolean, "defined">;
+        codexImageEdits: z<boolean, boolean, "defined">;
+        codexImagesAnyModel: z<boolean, boolean, "defined">;
+        codexUsage: z<boolean, boolean, "defined">;
+        codexFast: z<boolean, boolean, "defined">;
+        grokImagineImage: z<boolean, boolean, "defined">;
+        grokImagineVideo: z<boolean, boolean, "defined">;
+        searchResults: z<number, number, "defined">;
+        imageCount: z<number, number, "defined">;
+        videoArtifactTtlMs: z<number, number, "defined">;
+    }>>>, NoInfer<Schemastery.ObjectT<NoInfer<{
+        codexSearch: z<boolean, boolean, "defined">;
+        codexImages: z<boolean, boolean, "defined">;
+        codexImageEdits: z<boolean, boolean, "defined">;
+        codexImagesAnyModel: z<boolean, boolean, "defined">;
+        codexUsage: z<boolean, boolean, "defined">;
+        codexFast: z<boolean, boolean, "defined">;
+        grokImagineImage: z<boolean, boolean, "defined">;
+        grokImagineVideo: z<boolean, boolean, "defined">;
+        searchResults: z<number, number, "defined">;
+        imageCount: z<number, number, "defined">;
+        videoArtifactTtlMs: z<number, number, "defined">;
+    }>>>, "volatile">;
+    gateway: z<Partial<GatewayConfig>>;
+    ownerRequest: z<Schemastery.ObjectS<NoInfer<{
+        loopbackAccessMode: z<"loopback" | "ssh-tunnel", "loopback" | "ssh-tunnel", "plain">;
+        trustedProxy: z<Schemastery.ObjectS<NoInfer<{
+            peers: z<string[], string[], "plain">;
+            origins: z<string[], string[], "plain">;
+            ownerProof: z<string, string, "plain">;
+            csrfToken: z<string, string, "plain">;
+        }>>, Schemastery.ObjectT<NoInfer<{
+            peers: z<string[], string[], "plain">;
+            origins: z<string[], string[], "plain">;
+            ownerProof: z<string, string, "plain">;
+            csrfToken: z<string, string, "plain">;
+        }>>, "plain">;
+    }>>, Schemastery.ObjectT<NoInfer<{
+        loopbackAccessMode: z<"loopback" | "ssh-tunnel", "loopback" | "ssh-tunnel", "plain">;
+        trustedProxy: z<Schemastery.ObjectS<NoInfer<{
+            peers: z<string[], string[], "plain">;
+            origins: z<string[], string[], "plain">;
+            ownerProof: z<string, string, "plain">;
+            csrfToken: z<string, string, "plain">;
+        }>>, Schemastery.ObjectT<NoInfer<{
+            peers: z<string[], string[], "plain">;
+            origins: z<string[], string[], "plain">;
+            ownerProof: z<string, string, "plain">;
+            csrfToken: z<string, string, "plain">;
+        }>>, "plain">;
+    }>>, "plain">;
+}>>, "plain">;
 /**
  * Register the `grok-build` LLM route with a provider-native OAuth store.
  * @param ctx - plugin context carrying the LLM registry plus optional web server.

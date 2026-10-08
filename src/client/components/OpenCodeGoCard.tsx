@@ -8,10 +8,12 @@ export function OpenCodeGoCard({
 	t,
 	fallback,
 	onStartConversation,
+	onConnectionChange,
 }: {
 	t: GrokBuildSettingsInjected["t"];
 	fallback: CodingOAuthStatus["opencodeGo"];
 	onStartConversation?: (() => void) | undefined;
+	onConnectionChange?: ((connected: boolean) => void) | undefined;
 }) {
 	const [status, setStatus] = useState<GoSnapshot>();
 	const [error, setError] = useState<string>();
@@ -42,6 +44,12 @@ export function OpenCodeGoCard({
 		window.addEventListener("focus", focus);
 		return () => window.removeEventListener("focus", focus);
 	}, [reload]);
+	// Configuration readiness includes the bound credential, protocol, models and conflict checks;
+	// the last conversation result is not evidence of a currently configured connection.
+	const connected = status?.configuration.ready === true;
+	useEffect(() => {
+		onConnectionChange?.(connected);
+	}, [connected, onConnectionChange]);
 	const call = (fallback.updatedAt ?? 0) >= (status?.call.updatedAt ?? 0) ? fallback : status?.call;
 	return (
 		<OpenCodeGoConnectionView
@@ -50,9 +58,11 @@ export function OpenCodeGoCard({
 			{...(error ? { loadError: error } : {})}
 			t={(key, params) =>
 				t(
-					(key.startsWith("status.")
-						? "opencodeGoStatus." + key.slice(7)
-						: "opencodeGo" + key[0]!.toUpperCase() + key.slice(1)) as GrokBuildSettingsKey,
+					(key === "collapse"
+						? "collapseModels"
+						: key.startsWith("status.")
+							? "opencodeGoStatus." + key.slice(7)
+							: "opencodeGo" + key[0]!.toUpperCase() + key.slice(1)) as GrokBuildSettingsKey,
 					params,
 				)
 			}

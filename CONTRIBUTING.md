@@ -1,6 +1,8 @@
 # Contributing
 
-Welcome! `dsh-coding-subscription-oauth` is an open-source coding-subscription OAuth plugin for DeepSeek Harness. We appreciate issue reports, questions and pull requests. Read `docs/00-project-rules.md` first — it defines the release loop, versioning, commit/push hygiene and the publish vs local-only document split that every contribution must respect.
+Welcome! This community fork targets **DSH 0.2.0-rc.2**, not the upstream npm release. See [README.md](README.md), [INSTALL.md](INSTALL.md) and [HANDOFF.md](HANDOFF.md) for current behavior, installation and compatibility. Issue reports and pull requests belong to [this fork](https://github.com/A-Bit-of-Thinking/dsh-coding-subscription-oauth/issues) unless the issue has been independently reproduced upstream. Read [AGENTS.md](AGENTS.md) first; [docs/00-project-rules.md](docs/00-project-rules.md) describes inherited release rules, not authorization to publish under the upstream package name.
+
+Before public commits, configure a GitHub private `noreply` email and check both author and committer metadata. Keep machine-specific notes under Git-ignored `docs/local/`. Removing a file today does not erase its old versions from Git history. Do not rewrite published history or force-push without an explicit maintainer decision.
 
 ## Code of Conduct
 

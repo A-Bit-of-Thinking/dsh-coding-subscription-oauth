@@ -1,5 +1,8 @@
 
 
+> [!WARNING]
+> **上游历史文档：** 本文保留了上游项目的旧内容，并非本 fork 在 DSH **0.2.0-rc.2** 下的当前操作指南，请参阅已更新的 [README.md](<README.md>)、[README.fr.md](<README.fr.md>) 和 [INSTALL.md](<INSTALL.md>)。
+
 <!-- banner -->
 <div align="center">
 

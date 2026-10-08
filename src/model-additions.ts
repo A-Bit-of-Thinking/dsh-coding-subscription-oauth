@@ -158,6 +158,39 @@ export const MODEL_ADDITIONS: Record<string, readonly ModelAddition[]> = {
 				max: "max",
 			},
 		},
+		{
+			id: "claude-haiku-5-5",
+			name: "Claude Haiku 5.5",
+			extends: "claude-haiku-4-5",
+			/**
+			 * Sources officielles :
+			 * https://platform.claude.com/docs/en/models/haiku-5-5/overview.md
+			 * https://platform.claude.com/docs/en/models/haiku-5-5/migration-guide
+			 * https://platform.claude.com/docs/en/build-with-claude/effort
+			 * 1M contexte, 128K sortie ; adaptive thinking, cinq efforts.
+			 * Ne pas heriter du budget_tokens de Haiku 4.5 : il est refuse.
+			 * On omet temperature (seule la valeur 1 serait admise).
+			 * Les limites d'image de Haiku 4.5 restent conservatrices, pas une
+			 * revendication des limites maximales du nouveau modele.
+			 * pi-ai ne represente pas les paliers tarifaires : utiliser le palier
+			 * >100K pour ne pas sous-estimer les longs contextes. Pour <=100K,
+			 * entree/sortie/cache-read/cache-write 5m = .10/.50/.01/.125 $/MTok.
+			 * Estimation API uniquement, pas une facturation de l'abonnement OAuth.
+			 */
+			contextWindow: 1_000_000,
+			maxTokens: 128_000,
+			cost: { input: 0.5, output: 2.5, cacheRead: 0.05, cacheWrite: 0.625 },
+			thinkingLevelMap: {
+				off: null,
+				minimal: null,
+				low: "low",
+				medium: "medium",
+				high: "high",
+				xhigh: "xhigh",
+				max: "max",
+			},
+			compat: { forceAdaptiveThinking: true, supportsTemperature: false, supportsStrictTools: true },
+		},
 	],
 	[MODEL_ADDITION_PROVIDERS.kimi]: [],
 };

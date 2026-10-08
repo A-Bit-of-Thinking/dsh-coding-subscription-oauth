@@ -142,6 +142,8 @@ export interface CapabilitySettingsDescriptor {
 	readonly base?: unknown;
 	readonly user?: unknown;
 	readonly revision?: number;
+	readonly schema?: unknown;
+	readonly writable?: boolean;
 	readonly applies?: "live" | "restart";
 	readonly secrets?: readonly { readonly path?: readonly string[]; readonly set?: boolean }[];
 }
@@ -156,6 +158,18 @@ export interface CapabilitySettingsService {
 	get?(ns: string): unknown;
 	update?(ns: string, patch: object, expectedRevision?: number): Promise<void>;
 	replace?(ns: string, section: object, expectedRevision?: number): Promise<void>;
+	mutate?(
+		ns: string,
+		ops: readonly (
+			| { readonly op: "unset"; readonly path: readonly string[] }
+			| {
+					readonly op: "set";
+					readonly path: readonly string[];
+					readonly value: unknown;
+			  }
+		)[],
+		expectedRevision?: number,
+	): Promise<void>;
 	register?(
 		ns: string,
 		schema: CapabilitySettingsSchemaType,
@@ -483,6 +497,8 @@ export class CapabilitySettingsController {
 		if (this.disposed) return "disposed";
 		if (this.settings === undefined) return "absent";
 		if (this.settings.writable === false) return "read-only";
+		const described = this.readDescribed();
+		if (described?.writable === false || (this.scope === undefined && described === undefined)) return "read-only";
 		const canWrite =
 			typeof this.settings.update === "function" ||
 			typeof this.settings.replace === "function" ||
@@ -503,6 +519,12 @@ export class CapabilitySettingsController {
 		const reason = this.writeReason();
 		if (reason !== undefined) throw new CapabilitySettingsReadOnlyError(reason);
 		assertCapabilitySettingsPatch(input, `capability settings ${mode}`);
+		if (!Number.isSafeInteger(expectedRevision) || expectedRevision < 0) {
+			throw new TypeError("capability settings expectedRevision must be a non-negative integer");
+		}
+		if (this.scope === undefined && typeof this.settings?.[mode] !== "function") {
+			throw new CapabilitySettingsReadOnlyError("read-only");
+		}
 		const current = this.readSnapshot();
 		if (expectedRevision !== current.revision) {
 			throw new CapabilitySettingsConflictError(expectedRevision, current.revision);

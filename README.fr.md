@@ -1,311 +1,110 @@
+# dsh-coding-subscription-oauth
 
+Utilisez vos abonnements de programmation dans [DeepSeek Harness](https://github.com/deepseek-ai/dsh) : comptes OAuth, sélection des modèles, fonctions facultatives et passerelle locale.
 
-<!-- banner -->
-<div align="center">
+**Ce dépôt est un fork communautaire, pas la version npm originale.** Il cible précisément **DSH 0.2.0-rc.2**. Le nom et la version du paquet restent `dsh-coding-subscription-oauth@0.8.5` pour remplacer l'ancien plugin : c'est le dépôt et le commit installé qui distinguent ce fork.
 
-# 🔐 dsh-coding-subscription-oauth
+[English](README.md) · [Installation](INSTALL.md) · [Maintenance](HANDOFF.md) · [Historique](CHANGELOG.md)
 
-**v0.8.2 · anciennement `dsh-grok-build`
+## Ce qui change dans ce fork
 
-**Plugin OAuth pour abonnements de codage de [DeepSeek Harness](https://github.com/deepseek-ai/dsh).** Connectez-vous une fois avec les abonnements que vous payez déjà, puis utilisez leurs modèles depuis la page de configuration ou la CLI dsh. **Aucun token collé dans le chat.**
+- Compatibilité avec le noyau et le client DSH 0.2.0-rc.2 : `cordis` 4.0.4, `schemastery` 3.18.4, `pi-ai` 0.87.1.
+- Ajouts relus : **GPT-6.1 Sol, Claude Sonnet 5.5 et Claude Haiku 5.5**, dans [`src/model-additions.ts`](src/model-additions.ts), sans attendre une publication de pi-ai. Haiku utilise le thinking adaptatif ; les estimations API retiennent son palier de contexte long, conservateur. **Ce n'est pas une détection automatique.**
+- Services connectés en premier, sans nouveau design d'épinglage ; carte OpenCode Go repliée par défaut, comme les autres résumés de comptes.
+- Raccordement des capacités au système de configuration actuel de DSH, avec maintien du contrat historique pour les anciennes intégrations.
 
-[![License](https://img.shields.io/badge/license-Apache--2.0-green.svg)](LICENSE)
-[![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](CONTRIBUTING.md)
+Un modèle présent dans la liste n'est pas une garantie d'accès : le fournisseur et votre formule d'abonnement décident de sa disponibilité réelle.
 
-*[English](README.md) · [中文版](README.zh-CN.md) · [日本語](README.ja.md) · [한국어](README.ko.md) · [Português (BR)](README.pt-BR.md) · [Español](README.es.md) · [Français](README.fr.md) · [Deutsch](README.de.md) · [Русский](README.ru.md)*
+## Services
 
-</div>
+| Service | Route DSH | Connexion |
+| --- | --- | --- |
+| Grok Build | `grok-build` | OAuth de l'abonnement |
+| Codex | `codex-oauth` | OAuth de l'abonnement ChatGPT |
+| Claude Code | `claude-code-oauth` | OAuth de l'abonnement Claude |
+| Kimi Code | `kimi-code-oauth` | OAuth de l'abonnement Kimi |
+| OpenCode Go | `coding-opencode-go` | Référence de clé distincte dans DSH |
 
----
+`codex-oauth-fast` est facultatif et n'apparaît que si un catalogue récent du compte autorise le traitement prioritaire. Google Antigravity dépend du **plugin séparé** `dsh-agy` ; la compatibilité de ce fork ne certifie pas celle de ce plugin externe.
 
-> **Mise à niveau :** Suivez les étapes versionnées dans [`INSTALL.md`](INSTALL.md). `0.7.0` conserve le runtime du dispatcher partagé sur `dsh-coding-oauth-core@0.1.2` et `undici@7.29.0`, et limite reveal/rotate de la clé Gateway à l'accès loopback ; aucune migration de configuration, d'identifiants, de données ou de routes n'est requise. Grok Imagine conserve son dispatcher pinned explicite. Les versions à partir de `0.6.2` incluent la correction stricte d'injection Cordis au démarrage et le support de DSH `0.1.1-rc.2` ; conservez les fichiers profile/config/identifiants et redémarrez une seule fois le processus DSH Web existant après la mise à jour. Lorsque Hub et Subscription sont utilisés ensemble, `dsh-coding-oauth-core@0.1.2` avec `undici@7.29.0` est leur pin de runtime partagé, pas un plugin DSH distinct.
+## Installer la bonne version
 
----
+Prérequis : **DSH 0.2.0-rc.2**, Node **^22.19.0 ou >=24**. Une autre version de DSH doit être vérifiée séparément.
 
-## Changement de nom
+### Application de bureau
 
-Le projet s'appelait **`dsh-grok-build`** (Grok Build uniquement). Il couvre maintenant SuperGrok / Codex / Kimi / Claude / Antigravity.
+Passez par le gestionnaire de plugins de l'application, avec ce dépôt ou un dossier construit comme source si le gestionnaire l'accepte. Le profil desktop appartient à Electron : ne le modifiez pas par la CLI et ne remplacez pas ses dépendances pendant que l'application tourne. La limitation des dépendances Git et les alternatives sont expliquées dans [INSTALL.md](INSTALL.md).
 
-| | Utiliser | Toujours valable |
-|---|---|---|
-| GitHub / `dsh plugin add` | [`dsh-coding-subscription-oauth`](https://github.com/lninghaha/dsh-coding-subscription-oauth) | `github:lninghaha/dsh-grok-build` (même `main`) |
-| npm | `dsh-coding-subscription-oauth@0.8.5` (version actuelle) | Aucun ancien paquet npm n'a été publié |
-| CLI | `dsh-coding-oauth` | `dsh-grok-build` |
-| Cordis plugin id | `llm-grok-build-oauth` | inchangé |
-| API HTTP des réglages | `/plugins/dsh-grok-build/*` | inchangé |
-| Fichiers d'identifiants | `$DSH_HOME/.grok-build-auth.json` et les autres `*-oauth-auth.json` | inchangé |
+### Profil web indépendant
 
-## ✨ Fonctionnalités
-
-- 🧾 **Apportez votre abonnement** — utilisez les plans de codage que vous payez déjà au lieu de clés API séparées.
-- 🔑 **OAuth local, sans coller de clé** — autorisez dans la page de configuration ou la CLI ; les tokens n'entrent jamais dans le chat.
-- 🧩 **Un plugin, cinq fournisseurs** — Grok Build, Codex, Kimi, Claude et Google Antigravity.
-- 🛡️ **Sécurisé par conception** — fichiers d'identification propriétaire-seul `0600`, écriture atomique, verrou de fichier inter-processus.
-- ⚙️ **Catalogue dynamique** — le sélecteur n'affiche que les routes authentifiées, étiquetées `(OAuth)`, y compris le `xhigh` de grok-4.6.
-- 🌐 **Conscient du proxy** — ne proxifie que les domaines d'abonnement examinés et de confiance.
-- 📥 **CLI Pull manuel** — les paramètres découvrent en lecture seule les fichiers OAuth officiels des CLI Grok/Codex/Kimi/Claude autorisés ; vous récupérez une copie à sens unique après prévisualisation et confirmation d'écrasement.
-- 🗂️ **Paramètres en onglets** — Accounts, Gateway, Capabilities et About ; les hôtes distants privilégient le device code avec moins de bruit CLI missing ; les cartes connectées restent repliées jusqu'à expansion.
-- 🎛️ **Capacités optionnelles, désactivées par défaut** — recherche Codex, usage/quota, génération/édition d'images, Fast et Grok Imagine s'appliquent en direct dès leur activation. Un autre interrupteur, désactivé par défaut, autorise les routes de modèles non-Codex à appeler les outils d'image Codex sans contourner la connexion Codex, la session ni la propriété des pièces jointes.
-- 🔌 **Passerelle API locale opt-in** — serveur loopback compatible OpenAI/Anthropic, désactivé par défaut ; pour vos propres outils, jamais un relais public.
-- **OpenCode Go** — Connectez OpenCode Go dans **Comptes et modèles** pour l’utiliser dans DSH sans activer la passerelle. Les outils externes utilisent des routes explicites `opencode-go/<model-id>`, le protocole correspondant et un identifiant de conversation stable. La clé locale et les identifiants du fournisseur sont distincts. Un identifiant absent provoque une erreur ; vérifiez l’aperçu avant de migrer l’ancien mode global.
-
-## Problèmes d'intégration que ce plugin résout
-
-Ce sont les recherches et erreurs DSH qui mènent le plus souvent ici.
-| Vous avez cherché / vu | Ce qui était cassé | Ce que fait le plugin |
-|---|---|---|
-| SuperGrok / X Premium dans DSH, Grok Build vs `api.x.ai` | La route `xai` est l'API à l'usage. L'abonnement coding passe par `cli-chat-proxy.grok.com` | Route `grok-build` + en-têtes d'empreinte CLI (`X-XAI-Token-Auth`, etc.) pour éviter un 403 silencieux |
-| `API key is invalid` / `AUTH` | L'UI mappe **tout** AUTH sur ce texte. Souvent le access token OAuth a juste expiré | Refresh **5 min** avant l'expiry ; sur 401, invalide le jeton et **relance le step** |
-| `INVALID_REPLAY_STATE` au 2ᵉ tour Codex/Kimi | Le replay gardait l'id provider natif de pi-ai | Conserve l'id de route Harness et répare l'ancien replay |
-| grok-4.6 sans **xhigh** | `/v1/models-v2` renvoie déjà `reasoning_efforts` ; cloner le modèle 4.5 cache xhigh | Lit les efforts en direct. 4.6 a xhigh ; 4.5 reste low/medium/high |
-| Kimi Code en `x-api-key` Anthropic | Le jeton OAuth partait comme clé Anthropic | Uniquement `Authorization: Bearer` |
-| Des modèles non connectés restent dans le sélecteur | Toutes les routes enregistrées étaient listées | Les routes non authentifiées sont vides ; les noms connectés portent `(OAuth)` |
-| PKCE sur un DSH distant / headless | Impossible de revenir sur `localhost` | Device-code pour Grok/Codex/Kimi ; Claude accepte l'URL de redirect collée |
-| Le proxy passe Grok et casse Kimi en Chine | Un `HTTPS_PROXY` global | Proxy sur liste blanche ; Kimi reste **direct** sauf `proxyKimi: true` |
-| OpenCode Go: `MissingSessionID` | Missing stable conversation ID | DSH: use Accounts & Models; external tools: provide `x-opencode-session`. See [migration](docs/repair-candidate.md). |
-
-## Fournisseurs pris en charge
-
-| Fournisseur | Route | Authentification | Coexiste avec |
-|---|---|---|---|
-| **xAI Grok Build** | `grok-build` | SuperGrok / X Premium OAuth | `xai` |
-| **OpenAI Codex** | `codex-oauth` | ChatGPT Plus/Pro OAuth | `openai` |
-| **Kimi Code** | `kimi-code-oauth` | Kimi Code OAuth | `kimi-coding` |
-| **Claude Code** | `claude-code-oauth` | Claude Pro/Max OAuth | — |
-| **Google Antigravity** | `agy` | `dsh-agy` Google OAuth | — |
-
-> La connexion par dispositif de Grok Build, le catalogue dynamique `/v1/models-v2` et l'inférence en streaming via Responses sont vérifiés sur des déploiements réels. Codex/Kimi/Claude réutilisent l'OAuth/refresh natif du fournisseur de `@earendil-works/pi-ai` plutôt que de réimplémenter les flux de chaque vendeur.
-
-## 🚀 Démarrage rapide
+Depuis ce dépôt, une fois `lib/` reconstruit et vérifié :
 
 ```bash
-# 1. installez le plugin dans le profil web (version actuelle npm)
-dsh plugin --profile web add dsh-coding-subscription-oauth@0.8.5
-
-# 2. optionnel — Google Antigravity (version épinglée examinée)
-dsh plugin --profile web add dsh-agy@0.1.2
-
-# 3. redémarrez le processus DSH Web existant avec le gestionnaire configuré
-# `dsh web` est l’alias CLI officiel, pas un nom de service.
+dsh plugin --profile web add .
 ```
 
-Ensuite ouvrez **Settings → Coding OAuth** et connectez-vous à n'importe quel fournisseur. C'est tout — choisissez votre modèle authentifié dans le sélecteur.
-
-## 📚 Sommaire
-
-- [Changement de nom](#changement-de-nom)
-- [Fonctionnalités](#-fonctionnalités)
-- [Problèmes d'intégration que ce plugin résout](#problèmes-dintégration-que-ce-plugin-résout)
-- [Fournisseurs pris en charge](#fournisseurs-pris-en-charge)
-- [Démarrage rapide](#-démarrage-rapide)
-- [Installation](#installation)
-- [Page de configuration](#page-de-configuration)
-- [Capacités optionnelles](#capacités-optionnelles)
-- [Passerelle API locale](#passerelle-api-locale)
-- [CLI](#cli)
-- [Kimi en Chine](#kimi-en-chine)
-- [Proxy réseau](#proxy-réseau)
-- [Résilience](#résilience)
-- [Identifiants](#identifiants)
-- [Architecture](#architecture)
-- [Notes techniques](#notes-techniques)
-- [Conformité](#conformité)
-- [Documentation](#documentation)
-- [Lié](#lié)
-- [Contribution](#contribution)
-- [Licence](#licence)
-
-## Installation
-
-Nécessite DeepSeek Harness `0.1.1-rc.2` et Node.js 22.19+. Détails complets dans les [notes d'installation](INSTALL.md).
+Si le gestionnaire de paquets de votre hôte accepte les sources Git :
 
 ```bash
-# version actuelle npm (recommandé)
-dsh plugin --profile web add dsh-coding-subscription-oauth@0.8.5
-
-# développement/alternatif : depuis GitHub
-dsh plugin --profile web add github:lninghaha/dsh-coding-subscription-oauth
-
-# développement/alternatif : un checkout local de développement
-dsh plugin --profile web add ./dsh-coding-subscription-oauth
+dsh plugin --profile web add github:A-Bit-of-Thinking/dsh-coding-subscription-oauth
 ```
 
-Redémarrez le processus DSH Web existant après l'installation. Vérification sur un déploiement en direct :
+**Installer `dsh-coding-subscription-oauth@0.8.5` depuis npm installe l'original, pas ce fork.** npm 12 peut refuser les dépendances Git (`EALLOWGIT`). Ne désactivez pas cette protection globalement : utilisez une source locale construite, ou un installateur hôte compatible pnpm, puis vérifiez la provenance. Ce dépôt ne fournit ni publication npm propre au fork, ni installateur Windows universel.
+
+Après installation, redémarrez vous-même **l'application ou le processus existant**. Ouvrez ensuite **Paramètres → Coding OAuth / Comptes et modèles**. Les routes et les fichiers d'authentification restent inchangés ; le plugin ne choisit pas votre modèle par défaut.
+
+## Comptes et modèles
+
+- Les services connectés passent avant les autres, dans un ordre stable.
+- Dépliez une carte pour gérer les comptes, les modèles et les options avancées.
+- Les cases de sélection constituent un brouillon ; **Appliquer** enregistre l'ensemble, y compris une sélection volontairement vide.
+- Le bouton **Pull** des CLI officielles copie les identifiants vers le plugin après aperçu, vérification des conflits et confirmation. La découverte est en lecture seule : les fichiers des CLI officielles ne sont jamais modifiés.
+- Grok dispose d'un catalogue en direct. Codex, Claude et Kimi utilisent surtout pi-ai et les ajouts relus du fork ; les nouveaux identifiants ne sont pas importés automatiquement.
+- Une connexion présente localement peut être expirée ou révoquée côté fournisseur ; une reconnexion peut être nécessaire.
+
+## Fonctions facultatives
+
+Toutes ces options sont **désactivées par défaut** et prennent effet sans redémarrage :
+
+| Fonction | Condition ou limite |
+| --- | --- |
+| Recherche Codex | Compte Codex connecté ; endpoint privé |
+| Quotas Codex | Compte Codex connecté ; format fournisseur susceptible de changer |
+| Création et édition d'images Codex | Compte connecté ; édition limitée aux pièces jointes appartenant à la session actuelle |
+| Images depuis un autre modèle | Option supplémentaire explicite ; mêmes contrôles Codex/session/propriété |
+| Codex Fast | Catalogue récent autorisant `priority` ; aucune promesse de latence |
+| Grok Imagine images et vidéos | **Clé API `XAI_API_KEY` distincte**, pas l'OAuth Grok ; facturation API possible |
+
+Limites : 1–20 résultats de recherche, 1–4 images, conservation des vidéos de 1 heure à 7 jours. Les endpoints privés de Codex ne sont pas une API publique garantie : un interrupteur activé ne promet pas que le service répondra. En cas de modification concurrente, les révisions protègent contre l'écrasement silencieux.
+
+## OpenCode Go et passerelle
+
+OpenCode Go fonctionne dans DSH sans activer la passerelle. Le fournisseur isolé `coding-opencode-go` ne remplace pas le fournisseur natif `opencode-go`. Dans sa carte, configurez une référence de clé et les modèles/protocoles correspondants.
+
+La passerelle locale est un serveur séparé, **désactivé par défaut**, compatible Chat Completions, Responses et Messages. Pour Go, les outils externes utilisent `coding-opencode-go/<model-id>` avec un identifiant stable de conversation et le bon protocole. La clé Bearer locale de la passerelle et celle du fournisseur sont **distinctes**. Relisez les aperçus de migration avant de remplacer une ancienne configuration.
+
+N'exposez pas DSH ou la passerelle comme relais public. L'affichage et la rotation de la clé restent limités à l'accès local ; l'accès distant aux paramètres exige un tunnel SSH ou la politique stricte de proxy authentifié décrite dans [INSTALL.md](INSTALL.md).
+
+## Confidentialité et limites
+
+- Ne publiez ni identifiants, ni journaux réels, ni captures avec comptes, ni chemins propres à votre ordinateur. Les tokens OAuth restent dans les fichiers d'authentification locaux, pas dans le chat ou les réponses publiques de statut.
+- Écritures atomiques, verrous et modes de fichiers restrictifs sont employés ; sous Windows, les modes POSIX ne garantissent pas à eux seuls les permissions ACL.
+- Les recherches privées vont dans `docs/local/`, ignoré par Git et exclu du paquet.
+- Utilisez uniquement des comptes et endpoints autorisés. L'accès à un abonnement par un client tiers peut être incompatible avec les conditions du fournisseur ou entraîner des restrictions. Aucun contournement d'accès, partage public ou revente de quota n'est proposé.
+
+## Développement
 
 ```bash
-pnpm run verify:deployed            # vérifie /api/llm.models réel + état OAuth
-DSH_EXPECT_AGY_AUTH=signed-in pnpm run verify:deployed   # si Google est connecté
-
-DSH_RESTORE_PROVIDER=openai \
-DSH_RESTORE_MODEL=gpt-5.6-sol \
-DSH_RESTORE_REASONING=max \
-pnpm run smoke:deployed             # appels réels Codex/Kimi + rejeu du second tour
+pnpm install --frozen-lockfile
+pnpm run check:next
+pnpm run check
+npm pack --dry-run --json --ignore-scripts
 ```
 
-> `smoke:deployed` crée une session temporaire, valide les appels d'outils de Codex et Kimi ainsi qu'un second tour utilisateur (régression `INVALID_REPLAY_STATE`), restaure le modèle par défaut déclaré, puis archive la session.
+`src/` est la source ; `lib/` est généré et suivi par Git pour les installations depuis le dépôt. Ne modifiez jamais les fichiers générés à la main. Les tests DSH doivent utiliser un environnement isolé, pas le profil d'un utilisateur. Voir [CONTRIBUTING.md](CONTRIBUTING.md), [AGENTS.md](AGENTS.md) et [HANDOFF.md](HANDOFF.md).
 
-## Page de configuration
+Les autres traductions sont conservées comme documents historiques de l'amont, pas comme guides d'installation actuels. Les anciens visuels représentent l'interface de l'amont, pas une capture validée de ce build.
 
-Ouvrez **Settings → Coding OAuth** :
+## Origine et licence
 
-
-
-<table>
-  <tr>
-    <td align="center" valign="top" width="33%">
-      <a href="media/en/settings_accounts.png"><img src="media/en/settings_accounts.png" alt="Coding OAuth Accounts tab" width="280" /></a><br />
-      <sub>Accounts</sub>
-    </td>
-    <td align="center" valign="top" width="33%">
-      <a href="media/en/settings_gateway.png"><img src="media/en/settings_gateway.png" alt="Coding OAuth Gateway tab" width="280" /></a><br />
-      <sub>Gateway</sub>
-    </td>
-    <td align="center" valign="top" width="33%">
-      <a href="media/en/settings_capabilities.png"><img src="media/en/settings_capabilities.png" alt="Coding OAuth Capabilities tab" width="280" /></a><br />
-      <sub>Capabilities</sub>
-    </td>
-  </tr>
-</table>
-
-| Fournisseur | Méthodes |
-|---|---|
-| Grok | code d'autorisation · code de dispositif · importation CLI Grok · sélection de modèles |
-| Codex | code de dispositif (recommandé sur DSH distant) · PKCE navigateur |
-| Kimi | code de dispositif |
-| Claude | PKCE navigateur (un navigateur distant peut coller l'URL complète de redirect localhost) |
-| Antigravity | état d'installation de `dsh-agy` + commandes CLI locales au profil |
-
-La page de configuration est divisée en quatre onglets principaux : **Accounts**, **Gateway**, **Capabilities** et **About**. Les cartes des fournisseurs connectés se replient en un résumé compact et se déplient pour l'édition des modèles. L'aperçu du pull CLI occupe toute la largeur, et le statut d'Imagine s'affiche dans l'onglet Capabilities.
-
-Le sélecteur ne liste que les routes ayant terminé l'authentification ; les fournisseurs non authentifiés renvoient une liste vide. Les noms de fournisseurs portent `(OAuth)` et le catalogue est rafraîchi via `llm/adapters-updated` après connexion/déconnexion.
-
-## Capacités optionnelles
-
-Les huit options `codexSearch`, `codexImages`, `codexImageEdits`, `codexImagesAnyModel`, `codexUsage`, `codexFast`, `grokImagineImage` et `grokImagineVideo` sont désactivées par défaut et s'appliquent à chaud, sans redémarrage. `codexImagesAnyModel` ne relâche que la contrainte de route du modèle appelant ; Codex connecté, `codexImages` (et le commutateur d'édition pour éditer), ainsi que la propriété des pièces jointes de session et l'autorisation d'édition restent requis. Les limites sont `searchResults` (1–20, défaut 5), `imageCount` (1–4, défaut 1) et `videoArtifactTtlMs` (1 heure–7 jours, défaut 7 jours ; l'interface affiche 1–168 heures). Réduire la rétention raccourcit et nettoie immédiatement les artefacts existants ; l'augmenter ne concerne que les nouveaux.
-
-## Passerelle API locale
-
-Désactivée par défaut. Une fois activée, elle démarre un serveur `node:http` isolé (pas le port web de DSH) sur `127.0.0.1:18080` et réutilise les mêmes sessions OAuth authentifiées :
-
-```yaml
-gateway:
-  enabled: false
-  bind: 127.0.0.1
-  port: 18080
-  opencodeGo:
-    enabled: false
-```
-
-Endpoints : `GET /healthz`, `GET /v1/models`, `POST /v1/chat/completions`, `POST /v1/responses`, `POST /v1/messages`. Une clé Bearer est stockée dans `$DSH_HOME/.coding-oauth-gateway.json` (`0600`). La configuration permet de copier l'URL de base OpenAI (base + `/v1`), l'URL de base Anthropic et la clé Bearer actuelle sans la régénérer ; la révélation de la clé est limitée au loopback et n'est pas persistée dans le stockage du navigateur. La rotation est une action destructive avec confirmation. Le port d'écoute peut être modifié directement puis enregistré avec Apply, ou rempli par Random (18100–18999) ; le port choisi est persisté dans le document de passerelle propriétaire-seul, et un listener en cours d'exécution se rebind. Le bind reste configurable uniquement en YAML ; un bind non loopback exige une clé. Ce n'est pas un relais distant.
-
-Connectez OpenCode Go dans **Comptes et modèles** pour l’utiliser dans DSH sans activer la passerelle. Les outils externes utilisent des routes explicites `opencode-go/<model-id>`, le protocole correspondant et un identifiant de conversation stable. La clé locale et les identifiants du fournisseur sont distincts. Un identifiant absent provoque une erreur ; vérifiez l’aperçu avant de migrer l’ancien mode global. [Migration / 迁移](docs/repair-candidate.md).
-
-## CLI
-
-```bash
-# `dsh-grok-build` reste un alias de commande
-dsh-coding-oauth login [--pkce] | import | status | logout
-
-# fournisseurs plus récents
-dsh-coding-oauth login codex --device-auth | codex --browser | kimi | claude
-dsh-coding-oauth status all
-dsh-coding-oauth logout codex
-
-# Antigravity (installez d'abord dans le profil web)
-dsh plugin --profile web exec dsh-agy login --headless
-```
-
-> La CLI de `dsh-agy` modifie le pool de comptes en dehors du processus DSH, elle ne peut donc pas émettre d'événement de catalogue dans le processus — fermez et rouvrez le sélecteur de modèles après connexion/déconnexion.
-
-## Kimi en Chine
-
-L'OAuth de l'abonnement Kimi Code utilise `https://auth.kimi.com` ; l'inférence utilise `https://api.kimi.com/coding`. `https://api.moonshot.cn/v1` est le canal de clé API à l'utilisation du **Moonshot Open Platform** — il n'existe aucun « endpoint OAuth Chine » commutable. Ce plugin utilise une route séparée `kimi-code-oauth` et n'affecte pas une configuration `kimi-coding` par clé API existante.
-
-## Proxy réseau
-
-Priorité : `config.proxy` → `CODING_OAUTH_PROXY` → `GROK_BUILD_PROXY` → `HTTPS_PROXY`/`HTTP_PROXY`.
-
-```yaml
-- id: llm-grok-build-oauth
-  config:
-    proxy: http://127.0.0.1:7890
-    proxyKimi: false
-```
-
-Seuls les domaines d'abonnement examinés sont proxifiés (xAI/Grok, OpenAI Codex, Claude/Anthropic, Google Antigravity) ; tout le reste du trafic DSH garde son répartiteur d'origine. Kimi reste direct par défaut et n'utilise le proxy que lorsque `proxyKimi: true`.
-
-## Résilience
-
-Les jetons d'accès OAuth sont renouvelés **cinq minutes** avant l'expiration enregistrée (pi-ai 0.84+). Si l'amont refuse encore un jeton localement valide avec 401/403, le plugin recule le `expires` stocké et l'étape relancée rafraîchit le jeton avant de renvoyer.
-
-Les nouvelles tentatives suivent la politique du harness : les pannes transitoires (`RATE_LIMIT`/`SERVER`/`TIMEOUT`/`TRANSPORT`/`EMPTY_RESPONSE`) **et `AUTH`** sont relancées avec un backoff exponentiel (5 essais, 5 s → 10 s → 20 s → 40 s → 80 s (~155 s cumulés), jitter 10 %). L'épuisement de quota et un refresh token mort **ne** sont **pas** relancés. Surcharge par déploiement :
-
-```yaml
-- id: llm-grok-build-oauth
-  config:
-    retryPolicy:
-      mode: normal
-      maxRetries: 5
-      retryableCodes: [EMPTY_RESPONSE, RATE_LIMIT, SERVER, TIMEOUT, TRANSPORT, AUTH]
-      backoff: { initialDelayMs: 5000, maxDelayMs: 80000, jitterRatio: 0.1 }
-```
-
-## Identifiants
-
-Propriétaire-seul `0600`, écriture atomique, verrou de fichier inter-processus :
-
-- `$DSH_HOME/.grok-build-auth.json`
-- `$DSH_HOME/.codex-oauth-auth.json`
-- `$DSH_HOME/.kimi-code-oauth-auth.json`
-- `$DSH_HOME/.claude-code-oauth-auth.json`
-
-Les caches de sélection vivent dans les fichiers `*-models.json` correspondants. **Aucun statut HTTP, log ou interface ne peut renvoyer un token.**
-
-## Architecture
-
-```mermaid
-flowchart LR
-    subgraph DSH["DSH Harness"]
-        UI[Configuration / Web · Coding OAuth] --> LLM[llm route]
-        LLM --> ALIA[Adaptateur d'alias de route]
-    end
-    ALIA --> PI[fournisseur natif pi-ai<br/>OAuth · refresh · stream]
-    PI --> GROK[Grok Build]
-    PI --> COD[Codex]
-    PI --> KIMI[Kimi]
-    PI --> CLAU[Claude]
-    AGY[plugin dsh-agy] --> GAL[Google Antigravity]
-```
-
-## Notes techniques
-
-- **Grok Build** : fournisseur Responses personnalisé sur `cli-chat-proxy.grok.com/v1`, en-têtes d'empreinte CLI, catalogue de modèles dynamique.
-- **Codex/Kimi/Claude** : les fournisseurs natifs pi-ai gèrent OAuth et refresh ; l'adaptateur d'alias de route les mappe aux ids natifs tandis que l'identité du modèle reste inchangée.
-- Le token d'accès Kimi est explicitement converti en `Authorization: Bearer` — jamais envoyé par erreur comme `x-api-key` d'Anthropic.
-- Google Antigravity n'est **pas** rétro-ingénieré ici ; il utilise un plugin DSH dédié épinglé en version.
-
-## Conformité
-
-Utiliser des abonnements de codage via un harness tiers peut se situer dans une zone grise des conditions de chaque vendeur et peut déclencher des contrôles de quota, régionaux ou de risque de compte. **N'utilisez que vos propres comptes** ; ce projet ne prend pas en charge les comptes en masse, la revente de quota, le relais distant, le contournement de paywall ou l'usurpation de client. Pour un usage commercial, préférez les canaux officiels de clé API des vendeurs.
-
-## Documentation
-
-| Document | Objectif |
-|---|---|
-| [`INSTALL.md`](INSTALL.md) | Détails d'installation et d'utilisation |
-| [`CHANGELOG.md`](CHANGELOG.md) | Historique des versions |
-| [`docs/00-project-rules.md`](docs/00-project-rules.md) | Versioning, boucle de release, répartition public/privé |
-| [`docs/02-architecture.md`](docs/02-architecture.md) | Architecture interne (routes, flux de données, modules, API) · [中文](docs/02-architecture.zh-CN.md) |
-| [`CONTRIBUTING.md`](CONTRIBUTING.md) | Guide de contribution |
-
-## Lié
-
-- [`dsh-agy`](https://www.npmjs.com/package/dsh-agy) — plugin séparé épinglé pour Google Antigravity.
-
-## Contribution
-
-Les contributions de toute nature sont bienvenues — fonctionnalités, documentation, traductions, rapports de bugs. Voir **[CONTRIBUTING](CONTRIBUTING.md)** pour le flux, les conventions de commit et la boucle de release. Si votre langue n'est pas listée, envoyez un PR avec une traduction du README et nous l'ajouterons au tableau ci-dessus.
-
-## Licence
-
-[Apache-2.0](LICENSE) · voir [NOTICE](NOTICE). Des portions sont dérivées du projet [dsh-xai](https://github.com/MirDie/dsh-xai) (Apache-2.0).
+Fork de [lninghaha/dsh-coding-subscription-oauth](https://github.com/lninghaha/dsh-coding-subscription-oauth), avec attribution conservée. [Apache-2.0](LICENSE) · [NOTICE](NOTICE). Certaines parties proviennent de [dsh-xai](https://github.com/MirDie/dsh-xai).

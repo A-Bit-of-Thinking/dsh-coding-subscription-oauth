@@ -1,7 +1,7 @@
 # Rebasage de `dsh-coding-subscription-oauth` sur DSH 0.2.0-rc.2
 
-**Branche** : `rebase/dsh-0.2.0-rc.2`
-**Dépôt local** : `C:\Users\Korayl\Desktop\GitHub\dsh-coding-subscription-oauth`
+**Document historique** : premier rebasage, réalisé sur `rebase/dsh-0.2.0-rc.2`, puis intégré à `main`.
+**Installation et maintenance actuelles** : voir [INSTALL.md](INSTALL.md) et [HANDOFF.md](HANDOFF.md). Les descriptions « travail restant » ci-dessous concernent cette étape historique.
 **Amont** : `lninghaha/dsh-coding-subscription-oauth`, commit `ef93a2f` (tag `v0.8.5`, 15/09/2026)
 **Objectif** : rendre le plugin compatible avec le noyau DeepSeek Harness `0.2.0-rc.2` (application officielle)
 
@@ -168,5 +168,5 @@ Le bundle final ne contient plus **aucune** trace de `0.1.1-rc.2` ni de `cordis 
 ## 6. Ce qui n'est PAS touché
 
 - La logique OAuth, les routes, le gateway, le catalogue de modèles : aucun changement de comportement prévu.
-- Le fork reste sur la branche `rebase/dsh-0.2.0-rc.2`, `main` intacte.
-- Aucune modification du profil DSH réel de Korayl pendant ce travail.
+- À cette étape historique, le travail était isolé sur la branche de rebasage ; il a ensuite été intégré à `main`.
+- Aucun profil utilisateur partagé n'a été modifié pendant cette étape.

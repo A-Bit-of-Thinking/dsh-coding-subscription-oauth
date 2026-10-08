@@ -1,5 +1,8 @@
 
 
+> [!WARNING]
+> **Documentação histórica do projeto original:** Este conteúdo herdado não contém as instruções atuais deste fork para DSH **0.2.0-rc.2**; consulte as versões atualizadas de [README.md](<README.md>), [README.fr.md](<README.fr.md>) e [INSTALL.md](<INSTALL.md>).
+
 <!-- banner -->
 <div align="center">
 

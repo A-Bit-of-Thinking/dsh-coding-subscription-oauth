@@ -1,14 +1,17 @@
 import type { Context } from "@deepseek-ai/cordis";
+import Schema from "@deepseek-ai/schemastery";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { CODING_OAUTH_STATUS_PATH } from "../src/auth-routes.ts";
 import { CAPABILITY_SETTINGS_PATH } from "../src/capability-routes.ts";
-import type {
-	CapabilitySettingsPatch,
-	CapabilitySettingsScope,
-	CapabilitySettingsService,
+import {
+	type CapabilitySettingsPatch,
+	CapabilitySettingsSchema,
+	type CapabilitySettingsScope,
+	type CapabilitySettingsService,
+	normalizeCapabilitySettings,
 } from "../src/capability-settings.ts";
 import { GrokImagineClient } from "../src/grok-imagine.ts";
-import { apply } from "../src/index.ts";
+import { apply, Config } from "../src/index.ts";
 import { MediaStore } from "../src/media-store.ts";
 import { OAuthProviderSession } from "../src/oauth-session.ts";
 import { GrokBuildSession } from "../src/session.ts";
@@ -262,6 +265,115 @@ describe("plugin startup catalog initialization", () => {
 		releaseSecond();
 		expect(second.watcherCount()).toBe(0);
 		expect(searchReleases[1]).toHaveBeenCalledOnce();
+	});
+
+	it("reads volatile Config at startup and cleans modern host event listeners across settings churn", async () => {
+		vi.spyOn(GrokBuildSession.prototype, "loadCachedCatalog").mockResolvedValue(undefined);
+		vi.spyOn(OAuthProviderSession.prototype, "loadCachedModels").mockResolvedValue(undefined);
+		vi.spyOn(GrokBuildSession.prototype, "refreshLiveCatalog").mockResolvedValue(undefined);
+		const entryNamespace = "custom-oauth-entry";
+		const registration = Object.assign(vi.fn(), { replace: vi.fn() });
+		const searchReleases: ReturnType<typeof vi.fn>[] = [];
+		const registerSearchProvider = vi.fn(() => {
+			const release = vi.fn();
+			searchReleases.push(release);
+			return release;
+		});
+		const requiredWeb = requiredWebContext();
+		let settingsInjection: ((ctx: Context) => void) | undefined;
+		const webCtx = {
+			get: (name: string) => (name === "web" ? { registerSearchProvider } : undefined),
+			effect: (setup: () => unknown) => setup(),
+		} as unknown as Context;
+		const context = {
+			fiber: { entry: { id: "nested/path/custom-oauth-entry", options: { id: entryNamespace } } },
+			logger: () => ({ warn: vi.fn() }),
+			emit: vi.fn(),
+			effect: vi.fn(),
+			llm: { registerAdapter: vi.fn(() => registration) },
+			get: () => undefined,
+			inject: (services: readonly string[], callback: (ctx: Context) => unknown) => {
+				if (services.length === 0) return runFiber(() => callback(context));
+				if (services.join() === "llm") return runFiber(() => callback(context));
+				if (services.join() === "settings") {
+					settingsInjection = callback;
+					return runFiber();
+				}
+				if (services.join() === "web") return runFiber(() => callback(webCtx));
+				if (services.join() === "webServer") return runFiber(() => callback(requiredWeb));
+				return runFiber();
+			},
+		} as unknown as Context;
+		apply(context, Config({ capabilities: { codexSearch: true } }));
+		await new Promise<void>((resolve) => setImmediate(resolve));
+		expect(registerSearchProvider).toHaveBeenCalledOnce();
+
+		const attach = () => {
+			let value: CapabilitySettingsPatch = { codexSearch: false };
+			let revision = 0;
+			const listeners = new Set<(ns: string, revision: number) => void>();
+			let release = () => undefined;
+			const service: CapabilitySettingsService = {
+				writable: true,
+				describe: () => [
+					{
+						ns: entryNamespace,
+						revision,
+						schema: Schema.object({ capabilities: CapabilitySettingsSchema }).toJSON(),
+						value: { capabilities: normalizeCapabilitySettings(value) },
+						base: { capabilities: {} },
+						user: { capabilities: value },
+					},
+				],
+				update: vi.fn(async () => undefined),
+				mutate: vi.fn(async () => undefined),
+			};
+			settingsInjection!({
+				get: (name: string) => (name === "settings" ? service : undefined),
+				on: (event: string, listener: (ns: string, revision: number) => void) => {
+					expect(event).toBe("settings/document-updated");
+					listeners.add(listener);
+					return () => {
+						listeners.delete(listener);
+					};
+				},
+				effect: (setup: () => () => undefined) => {
+					release = setup();
+				},
+			} as unknown as Context);
+			return {
+				count: () => listeners.size,
+				release: () => release(),
+				set(next: CapabilitySettingsPatch) {
+					value = next;
+					revision++;
+					for (const listener of listeners) listener(entryNamespace, revision);
+				},
+			};
+		};
+		const first = attach();
+		expect(first.count()).toBe(1);
+		expect(searchReleases[0]).toHaveBeenCalledOnce();
+		first.set({ codexSearch: true });
+		await Promise.resolve();
+		expect(registerSearchProvider).toHaveBeenCalledTimes(2);
+		const second = attach();
+		expect(first.count()).toBe(0);
+		expect(second.count()).toBe(1);
+		expect(searchReleases[1]).toHaveBeenCalledOnce();
+		first.release(); // A late obsolete fiber disposer must not release the new bridge.
+		first.set({ codexSearch: true });
+		await Promise.resolve();
+		expect(registerSearchProvider).toHaveBeenCalledTimes(2);
+		second.set({ codexSearch: true });
+		await Promise.resolve();
+		expect(registerSearchProvider).toHaveBeenCalledTimes(3);
+		second.set({ codexSearch: false });
+		second.release();
+		await Promise.resolve();
+		expect(second.count()).toBe(0);
+		expect(registerSearchProvider).toHaveBeenCalledTimes(3);
+		expect(searchReleases[2]).not.toHaveBeenCalled(); // Parsed startup reference remains enabled.
 	});
 
 	it("aborts the Imagine client before asynchronous media cleanup during injected-service teardown", async () => {

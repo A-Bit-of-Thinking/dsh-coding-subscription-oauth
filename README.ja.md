@@ -1,5 +1,8 @@
 
 
+> [!WARNING]
+> **上流プロジェクトの旧ドキュメント：** この文書は上流から引き継いだ過去の内容であり、DSH **0.2.0-rc.2** 対応の本フォークの最新手順ではないため、更新済みの [README.md](<README.md>)、[README.fr.md](<README.fr.md>)、[INSTALL.md](<INSTALL.md>) を参照してください。
+
 <!-- banner -->
 <div align="center">
 

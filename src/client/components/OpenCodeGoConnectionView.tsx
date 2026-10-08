@@ -1,5 +1,7 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import { GO_APIS, type GoApi, isGoApi, knownGoApi } from "../../opencode-go-protocol.ts";
+import { bodyStyle, buttonStyle, cardStyle, hintStyle, rowStyle, titleStyle } from "../styles.ts";
+import { Badge } from "./Badge.tsx";
 
 export interface GoModel {
 	readonly id: string;
@@ -62,6 +64,7 @@ export type GoViewKey =
 	| "apply"
 	| "startConversation"
 	| "edit"
+	| "collapse"
 	| "cancel"
 	| "reload"
 	| "credentialSaved"
@@ -136,6 +139,9 @@ export function OpenCodeGoConnectionView({
 	onMigrateLegacy,
 	onStartConversation,
 }: GoViewProps) {
+	const [expanded, setExpanded] = useState(false);
+	const detailsId = useId();
+	const titleId = useId();
 	const [editing, setEditing] = useState<boolean | null>(null);
 	const [dirty, setDirty] = useState(false);
 	const [credentialRef, setCredentialRef] = useState("");
@@ -215,346 +221,364 @@ export function OpenCodeGoConnectionView({
 	return (
 		<article
 			className="dus-oauth-card"
+			aria-labelledby={titleId}
 			data-opencode-go-status={currentCall?.lastCall ?? "loading"}
 			data-unsaved={dirty || apiKey !== "" ? "true" : undefined}
-			style={{
-				padding: 16,
-				display: "flex",
-				flexDirection: "column",
-				gap: 12,
-				border: "1px solid var(--dsw-alias-border-subtle, #777)",
-				borderRadius: 10,
-				minWidth: 0,
-			}}
+			style={{ ...cardStyle, minWidth: 0 }}
 		>
-			<div style={{ ...actions, justifyContent: "space-between", alignItems: "center" }}>
-				<strong>{t("title")}</strong>
-				{status?.configuration.ready ? <span>{t("configured")}</span> : null}
-			</div>
-			<p style={{ margin: 0 }}>{t(callKey)}</p>
-			{status?.providerId ? (
-				<p style={{ margin: 0, opacity: 0.85, fontSize: "0.9em" }}>
-					{t("providerIdHint", { providerId: status.providerId })}
-				</p>
-			) : null}
-			{status?.legacy?.migratable && onMigrateLegacy ? (
-				<div
-					role="status"
-					style={{
-						display: "flex",
-						flexDirection: "column",
-						gap: 8,
-						padding: 10,
-						borderRadius: 8,
-						border: "1px solid var(--dsw-alias-border-subtle, #777)",
-					}}
-				>
-					<p style={{ margin: 0 }}>
-						{t("legacyMigration", {
-							legacyId: status.legacy.providerId,
-							providerId: status.legacy.targetProviderId,
-						})}
+			<div style={rowStyle}>
+				<div style={{ minWidth: 0 }}>
+					<h3 id={titleId} style={{ ...titleStyle, fontSize: 16 }}>
+						{t("title")}
+					</h3>
+					<p style={{ ...hintStyle, marginTop: 4, overflowWrap: "anywhere" }}>
+						{status?.configuration.ready
+							? expanded
+								? status.configuration.models.map((model) => model.name ?? model.id).join(" · ")
+								: `${t("model")} · ${status.configuration.models.length}`
+							: t("description")}
 					</p>
-					<button
-						type="button"
-						style={control}
-						disabled={pending || status.configuration.revision === null || !status.configuration.writable}
-						onClick={() => {
-							if (status.configuration.revision === null) return;
-							run(async () => {
-								await onMigrateLegacy({
-									expectedRevision: status.configuration.revision!,
-									confirmConflicts: true,
-								});
-								setEditing(false);
-								setDirty(false);
-								setNotice("applied");
-							});
-						}}
-					>
-						{t("migrate")}
-					</button>
 				</div>
-			) : null}
-			{status?.configuration.ready ? (
-				<p style={{ margin: 0, overflowWrap: "anywhere" }}>
-					{status.configuration.models.map((model) => model.name ?? model.id).join(" · ")}
-				</p>
-			) : (
-				<p style={{ margin: 0 }}>{t("description")}</p>
-			)}
+				{status?.configuration.ready ? <Badge label={t("configured")} providerStatus="signed-in" /> : null}
+			</div>
+			<p style={bodyStyle}>{t(callKey)}</p>
 			<div style={actions}>
 				{status?.configuration.ready && onStartConversation ? (
-					<button type="button" style={control} disabled={pending || dirty} onClick={onStartConversation}>
+					<button type="button" style={buttonStyle} disabled={pending || dirty} onClick={onStartConversation}>
 						{t("startConversation")}
 					</button>
 				) : null}
-				{!showingForm && status ? (
-					<button type="button" style={control} onClick={() => setEditing(true)}>
-						{t("edit")}
-					</button>
-				) : null}
+				<button
+					type="button"
+					style={buttonStyle}
+					aria-expanded={expanded}
+					aria-controls={detailsId}
+					onClick={() => {
+						if (!expanded) setEditing(true);
+						setExpanded((current) => !current);
+					}}
+				>
+					{expanded ? t("collapse") : t("edit")}
+				</button>
 			</div>
-			{showingForm ? (
-				<div style={{ ...field, gap: 12 }}>
-					<label style={field}>
-						{t("credential")}
-						<select
-							style={control}
-							value={credentialRef}
-							disabled={pending}
-							onChange={(event) => {
-								change();
-								setCredentialRef(event.target.value);
-							}}
-						>
-							<option value="">{t("chooseCredential")}</option>
-							{status?.credential.candidates.map((item) => (
-								<option key={item.ref} value={item.ref}>
-									{item.ref}
-									{item.configured ? ` · ${t("configured")}` : ""}
-								</option>
-							))}
-						</select>
-					</label>
-					<label style={field}>
-						{t("apiKey")}
-						<input
-							style={control}
-							type="password"
-							autoComplete="off"
-							value={apiKey}
-							disabled={pending || candidate?.writable !== true}
-							placeholder={candidate?.configured ? t("reuseHint") : ""}
-							onChange={(event) => {
-								change();
-								setApiKey(event.target.value);
-							}}
-						/>
-					</label>
-					{candidate?.writable === false || status?.configuration.writable === false ? <p>{t("readOnly")}</p> : null}
-					<div style={actions}>
+			{/* Keep the view and its drafts mounted while hiding details from keyboard/accessibility navigation. */}
+			<div
+				id={detailsId}
+				hidden={!expanded}
+				style={{ display: expanded ? "flex" : "none", flexDirection: "column", gap: 12 }}
+			>
+				{status?.providerId ? (
+					<p style={{ margin: 0, opacity: 0.85, fontSize: "0.9em" }}>
+						{t("providerIdHint", { providerId: status.providerId })}
+					</p>
+				) : null}
+				{status?.legacy?.migratable && onMigrateLegacy ? (
+					<div
+						role="status"
+						style={{
+							display: "flex",
+							flexDirection: "column",
+							gap: 8,
+							padding: 10,
+							borderRadius: 8,
+							border: "1px solid var(--dsw-alias-border-subtle, #777)",
+						}}
+					>
+						<p style={{ margin: 0 }}>
+							{t("legacyMigration", {
+								legacyId: status.legacy.providerId,
+								providerId: status.legacy.targetProviderId,
+							})}
+						</p>
 						<button
-							style={control}
 							type="button"
-							disabled={pending || !credentialRef || (apiKey ? !candidate?.writable : !candidate?.configured)}
-							onClick={() =>
-								run(async () => {
-									if (!credentialRef || (apiKey ? !candidate?.writable : !candidate?.configured)) return;
-									await onSaveCredential({ credentialRef, ...(apiKey ? { apiKey } : {}) });
-									setApiKey("");
-									setNotice("credentialSaved");
-								})
-							}
-						>
-							{apiKey ? t("saveKey") : t("reuse")}
-						</button>
-						<button
 							style={control}
-							type="button"
-							disabled={pending || !candidate?.configured}
-							onClick={() =>
+							disabled={pending || status.configuration.revision === null || !status.configuration.writable}
+							onClick={() => {
+								if (status.configuration.revision === null) return;
 								run(async () => {
-									if (!candidate?.configured) return;
-									const result = await onLoadModels(credentialRef);
-									setCatalog(result.models);
-									setDirty(true);
-									const matching = result.models.filter((model) => {
-										const suggested = knownGoApi(model.id);
-										return suggested === undefined || suggested === api;
+									await onMigrateLegacy({
+										expectedRevision: status.configuration.revision!,
+										confirmConflicts: true,
 									});
-									if (enabledIds.length === 0) {
-										const preferred = matching.find((model) => model.id === "deepseek-v4.1-flash") ?? matching[0];
-										setEnabledIds(preferred ? [preferred.id] : []);
-									}
-									setNotice("directoryLoaded");
-								})
-							}
+									setEditing(false);
+									setDirty(false);
+									setNotice("applied");
+								});
+							}}
 						>
-							{t("fetchModels")}
+							{t("migrate")}
 						</button>
 					</div>
-					<label style={field}>
-						{t("protocol")}
-						<select
-							aria-label={t("protocol")}
-							style={control}
-							value={api}
-							disabled={pending || !status?.configuration.writable}
-							onChange={(event) => {
-								change();
-								const next = event.target.value as GoApi;
-								setApi(next);
-								setEnabledIds((current) =>
-									current.filter((id) => {
-										const suggested = knownGoApi(id);
-										return suggested === undefined || suggested === next;
-									}),
-								);
-								setConfirmed(false);
-							}}
-						>
-							{GO_APIS.map((value) => (
-								<option key={value} value={value}>
-									{value}
-								</option>
-							))}
-						</select>
-					</label>
-					<p>{t("protocolHint")}</p>
-					<div style={field}>
-						<span>{t("model")}</span>
-						<p style={{ margin: 0 }}>{t("modelsHint")}</p>
+				) : null}
+				<div style={actions}>
+					{!showingForm && status ? (
+						<button type="button" style={control} onClick={() => setEditing(true)}>
+							{t("edit")}
+						</button>
+					) : null}
+				</div>
+				{showingForm ? (
+					<div style={{ ...field, gap: 12 }}>
+						<label style={field}>
+							{t("credential")}
+							<select
+								style={control}
+								value={credentialRef}
+								disabled={pending}
+								onChange={(event) => {
+									change();
+									setCredentialRef(event.target.value);
+								}}
+							>
+								<option value="">{t("chooseCredential")}</option>
+								{status?.credential.candidates.map((item) => (
+									<option key={item.ref} value={item.ref}>
+										{item.ref}
+										{item.configured ? ` · ${t("configured")}` : ""}
+									</option>
+								))}
+							</select>
+						</label>
+						<label style={field}>
+							{t("apiKey")}
+							<input
+								style={control}
+								type="password"
+								autoComplete="off"
+								value={apiKey}
+								disabled={pending || candidate?.writable !== true}
+								placeholder={candidate?.configured ? t("reuseHint") : ""}
+								onChange={(event) => {
+									change();
+									setApiKey(event.target.value);
+								}}
+							/>
+						</label>
+						{candidate?.writable === false || status?.configuration.writable === false ? <p>{t("readOnly")}</p> : null}
 						<div style={actions}>
 							<button
-								type="button"
 								style={control}
-								disabled={pending || status?.configuration.writable !== true || visibleChoices.length === 0}
-								onClick={() => {
-									change();
-									setEnabledIds(visibleChoices.map((model) => model.id));
-									setConfirmed(false);
-								}}
+								type="button"
+								disabled={pending || !credentialRef || (apiKey ? !candidate?.writable : !candidate?.configured)}
+								onClick={() =>
+									run(async () => {
+										if (!credentialRef || (apiKey ? !candidate?.writable : !candidate?.configured)) return;
+										await onSaveCredential({ credentialRef, ...(apiKey ? { apiKey } : {}) });
+										setApiKey("");
+										setNotice("credentialSaved");
+									})
+								}
 							>
-								{t("selectMatching")}
+								{apiKey ? t("saveKey") : t("reuse")}
 							</button>
 							<button
-								type="button"
 								style={control}
-								disabled={pending || status?.configuration.writable !== true || enabledIds.length === 0}
-								onClick={() => {
+								type="button"
+								disabled={pending || !candidate?.configured}
+								onClick={() =>
+									run(async () => {
+										if (!candidate?.configured) return;
+										const result = await onLoadModels(credentialRef);
+										setCatalog(result.models);
+										setDirty(true);
+										const matching = result.models.filter((model) => {
+											const suggested = knownGoApi(model.id);
+											return suggested === undefined || suggested === api;
+										});
+										if (enabledIds.length === 0) {
+											const preferred = matching.find((model) => model.id === "deepseek-v4.1-flash") ?? matching[0];
+											setEnabledIds(preferred ? [preferred.id] : []);
+										}
+										setNotice("directoryLoaded");
+									})
+								}
+							>
+								{t("fetchModels")}
+							</button>
+						</div>
+						<label style={field}>
+							{t("protocol")}
+							<select
+								aria-label={t("protocol")}
+								style={control}
+								value={api}
+								disabled={pending || !status?.configuration.writable}
+								onChange={(event) => {
 									change();
-									setEnabledIds([]);
+									const next = event.target.value as GoApi;
+									setApi(next);
+									setEnabledIds((current) =>
+										current.filter((id) => {
+											const suggested = knownGoApi(id);
+											return suggested === undefined || suggested === next;
+										}),
+									);
 									setConfirmed(false);
 								}}
 							>
-								{t("clearModels")}
+								{GO_APIS.map((value) => (
+									<option key={value} value={value}>
+										{value}
+									</option>
+								))}
+							</select>
+						</label>
+						<p>{t("protocolHint")}</p>
+						<div style={field}>
+							<span>{t("model")}</span>
+							<p style={{ margin: 0 }}>{t("modelsHint")}</p>
+							<div style={actions}>
+								<button
+									type="button"
+									style={control}
+									disabled={pending || status?.configuration.writable !== true || visibleChoices.length === 0}
+									onClick={() => {
+										change();
+										setEnabledIds(visibleChoices.map((model) => model.id));
+										setConfirmed(false);
+									}}
+								>
+									{t("selectMatching")}
+								</button>
+								<button
+									type="button"
+									style={control}
+									disabled={pending || status?.configuration.writable !== true || enabledIds.length === 0}
+									onClick={() => {
+										change();
+										setEnabledIds([]);
+										setConfirmed(false);
+									}}
+								>
+									{t("clearModels")}
+								</button>
+							</div>
+							<fieldset
+								aria-label={t("model")}
+								style={{ ...modelListStyle, border: "none", margin: 0, padding: 0, minWidth: 0 }}
+							>
+								{visibleChoices.length === 0 ? (
+									<p style={{ margin: 0 }}>{t("modelsEmpty")}</p>
+								) : (
+									visibleChoices.map((model) => {
+										const label = model.name ?? model.id;
+										const efforts = model.reasoningEfforts;
+										// Show selectable levels: off may be null; other levels need a wire string.
+										const thinking =
+											efforts && typeof efforts === "object"
+												? Object.entries(efforts)
+														.filter(
+															([level, wire]) => level === "off" || (typeof wire === "string" && wire.trim() !== ""),
+														)
+														.map(([level]) => level)
+												: [];
+										return (
+											<label key={model.id} style={{ display: "flex", gap: 8, alignItems: "flex-start", minWidth: 0 }}>
+												<input
+													type="checkbox"
+													checked={enabledIds.includes(model.id)}
+													disabled={pending || status?.configuration.writable !== true}
+													onChange={(event) => toggleModel(model.id, event.target.checked)}
+												/>
+												<span style={{ overflowWrap: "anywhere" }}>
+													{label}
+													{thinking.length > 0 ? ` · thinking: ${thinking.join("/")}` : ""}
+												</span>
+											</label>
+										);
+									})
+								)}
+							</fieldset>
+						</div>
+						{status && revision !== status.configuration.revision ? (
+							<p role="status">{t("configurationChanged")}</p>
+						) : null}
+						{conflicts.length ? (
+							<div>
+								<p>{t("conflictPreview", { conflicts: conflicts.join(", ") })}</p>
+								<label>
+									<input
+										type="checkbox"
+										checked={confirmed}
+										disabled={pending}
+										onChange={(event) => setConfirmed(event.target.checked)}
+									/>{" "}
+									{t("confirmConflict")}
+								</label>
+							</div>
+						) : null}
+						<div style={actions}>
+							<button
+								style={control}
+								type="button"
+								disabled={
+									pending ||
+									!candidate?.configured ||
+									!status?.configuration.writable ||
+									revision === null ||
+									(!!conflicts.length && !confirmed)
+								}
+								onClick={() =>
+									run(async () => {
+										if (
+											!candidate?.configured ||
+											!status?.configuration.writable ||
+											revision === null ||
+											(conflicts.length && !confirmed)
+										)
+											return;
+										const byId = new Map(choices.map((item) => [item.id, item]));
+										const saved = await onApply({
+											api,
+											credentialRef,
+											models: enabledIds.map((id) => byId.get(id) ?? { id }),
+											expectedRevision: revision,
+											confirmConflicts: confirmed,
+										});
+										setRevision(saved.configuration.revision);
+										setDirty(false);
+										setEditing(false);
+										setNotice("applied");
+									})
+								}
+							>
+								{t("apply")}
+							</button>
+							<button
+								style={control}
+								type="button"
+								disabled={pending}
+								onClick={() =>
+									run(async () => {
+										const latest = await onReload();
+										if (latest) setRevision(latest.configuration.revision);
+										setConfirmed(false);
+									})
+								}
+							>
+								{t("reload")}
+							</button>
+							<button
+								style={control}
+								type="button"
+								disabled={pending}
+								onClick={() =>
+									run(async () => {
+										await onReload();
+										setApiKey("");
+										setDirty(false);
+										setEditing(false);
+										setNotice(undefined);
+									})
+								}
+							>
+								{t("cancel")}
 							</button>
 						</div>
-						<fieldset
-							aria-label={t("model")}
-							style={{ ...modelListStyle, border: "none", margin: 0, padding: 0, minWidth: 0 }}
-						>
-							{visibleChoices.length === 0 ? (
-								<p style={{ margin: 0 }}>{t("modelsEmpty")}</p>
-							) : (
-								visibleChoices.map((model) => {
-									const label = model.name ?? model.id;
-									const efforts = model.reasoningEfforts;
-									// Show selectable levels: off may be null; other levels need a wire string.
-									const thinking =
-										efforts && typeof efforts === "object"
-											? Object.entries(efforts)
-													.filter(
-														([level, wire]) => level === "off" || (typeof wire === "string" && wire.trim() !== ""),
-													)
-													.map(([level]) => level)
-											: [];
-									return (
-										<label key={model.id} style={{ display: "flex", gap: 8, alignItems: "flex-start", minWidth: 0 }}>
-											<input
-												type="checkbox"
-												checked={enabledIds.includes(model.id)}
-												disabled={pending || status?.configuration.writable !== true}
-												onChange={(event) => toggleModel(model.id, event.target.checked)}
-											/>
-											<span style={{ overflowWrap: "anywhere" }}>
-												{label}
-												{thinking.length > 0 ? ` · thinking: ${thinking.join("/")}` : ""}
-											</span>
-										</label>
-									);
-								})
-							)}
-						</fieldset>
 					</div>
-					{status && revision !== status.configuration.revision ? (
-						<p role="status">{t("configurationChanged")}</p>
-					) : null}
-					{conflicts.length ? (
-						<div>
-							<p>{t("conflictPreview", { conflicts: conflicts.join(", ") })}</p>
-							<label>
-								<input
-									type="checkbox"
-									checked={confirmed}
-									disabled={pending}
-									onChange={(event) => setConfirmed(event.target.checked)}
-								/>{" "}
-								{t("confirmConflict")}
-							</label>
-						</div>
-					) : null}
-					<div style={actions}>
-						<button
-							style={control}
-							type="button"
-							disabled={
-								pending ||
-								!candidate?.configured ||
-								!status?.configuration.writable ||
-								revision === null ||
-								(!!conflicts.length && !confirmed)
-							}
-							onClick={() =>
-								run(async () => {
-									if (
-										!candidate?.configured ||
-										!status?.configuration.writable ||
-										revision === null ||
-										(conflicts.length && !confirmed)
-									)
-										return;
-									const byId = new Map(choices.map((item) => [item.id, item]));
-									const saved = await onApply({
-										api,
-										credentialRef,
-										models: enabledIds.map((id) => byId.get(id) ?? { id }),
-										expectedRevision: revision,
-										confirmConflicts: confirmed,
-									});
-									setRevision(saved.configuration.revision);
-									setDirty(false);
-									setEditing(false);
-									setNotice("applied");
-								})
-							}
-						>
-							{t("apply")}
-						</button>
-						<button
-							style={control}
-							type="button"
-							disabled={pending}
-							onClick={() =>
-								run(async () => {
-									const latest = await onReload();
-									if (latest) setRevision(latest.configuration.revision);
-									setConfirmed(false);
-								})
-							}
-						>
-							{t("reload")}
-						</button>
-						<button
-							style={control}
-							type="button"
-							disabled={pending}
-							onClick={() =>
-								run(async () => {
-									await onReload();
-									setApiKey("");
-									setDirty(false);
-									setEditing(false);
-									setNotice(undefined);
-								})
-							}
-						>
-							{t("cancel")}
-						</button>
-					</div>
-				</div>
-			) : null}
+				) : null}
+			</div>
 			{notice ? (
 				<p role="status" style={{ margin: 0 }}>
 					{t(notice)}
@@ -563,10 +587,11 @@ export function OpenCodeGoConnectionView({
 			{error || loadError ? (
 				<div role="alert">
 					<p>{error ?? loadError}</p>
-					{!showingForm ? (
+					{!expanded || !showingForm ? (
 						<button
-							style={control}
+							style={buttonStyle}
 							type="button"
+							disabled={pending}
 							onClick={() =>
 								run(async () => {
 									await onReload();

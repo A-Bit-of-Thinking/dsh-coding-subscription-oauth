@@ -17,6 +17,14 @@ import type { Credential, OAuthCredential } from "@earendil-works/pi-ai";
 import { acquireCodingOAuthRuntime, CODING_OAUTH_CORE_ABI, type CodingOAuthRuntime } from "dsh-coding-oauth-core";
 import { createCodingOAuthAdapter } from "./adapter.ts";
 import { registerCodingOAuthRoutes } from "./auth-routes.ts";
+import {
+	adaptCapabilityHostSettings,
+	type CapabilitySettingsReference,
+	capabilityEntryNamespace,
+	hasCapabilitySettingsForms,
+	readCapabilityConfig,
+	watchCapabilityHostSettings,
+} from "./capability-host-settings.ts";
 import { registerCapabilityRoutes } from "./capability-routes.ts";
 import {
 	bindCapabilitySearch,
@@ -276,8 +284,8 @@ export interface Config {
 	 * step refreshes before reuse. Quota exhaustion is never retried.
 	 */
 	retryPolicy?: RetryPolicyConfig;
-	/** Secret-free composition/YAML defaults below live user settings. */
-	capabilities?: CapabilitySettingsPatch;
+	/** Live Config reference; plain composition values remain accepted by apply(). */
+	capabilities?: CapabilitySettingsPatch | CapabilitySettingsReference;
 	/** Opt-in isolated local OpenAI-compatible gateway. Default off. */
 	gateway?: Partial<GatewayConfig>;
 	/** Owner-only request authorization for loopback, SSH tunnels, and trusted HTTPS proxies. */
@@ -292,11 +300,12 @@ export interface Config {
 	};
 }
 
-export const Config: z<Config> = z.object({
+// Infer parsed output so volatile capabilities retain their stable get() type.
+export const Config = z.object({
 	proxy: z.string(),
 	proxyKimi: z.boolean().default(false),
 	retryPolicy: RetryPolicySchema,
-	capabilities: CapabilitySettingsSchema,
+	capabilities: CapabilitySettingsSchema.volatile(),
 	gateway: GatewayConfigSchema,
 	ownerRequest: z.object({
 		loopbackAccessMode: z.union([z.const("loopback"), z.const("ssh-tunnel")]),
@@ -461,7 +470,8 @@ async function applyOwned(ctx: Context, config: Config): Promise<void> {
 	);
 	ctx.effect(() => () => proxyLease.release(), "dsh-coding-subscription-oauth: scoped proxy policy");
 	const logger = ctx.logger(name);
-	const baseCapabilities = resolveCapabilitySettings(config.capabilities);
+	const entryNamespace = capabilityEntryNamespace(ctx);
+	const baseCapabilities = resolveCapabilitySettings(readCapabilityConfig(config.capabilities));
 	const runtime = new CapabilityRuntimeState(baseCapabilities, () => {
 		logger.warn("an optional capability listener failed");
 	});
@@ -520,7 +530,7 @@ async function applyOwned(ctx: Context, config: Config): Promise<void> {
 	let settingsOwner = 0;
 	const createFallbackCapabilityController = (): ReturnType<typeof createCapabilitySettingsController> =>
 		createCapabilitySettingsController({
-			...(config.capabilities === undefined ? {} : { base: config.capabilities }),
+			base: readCapabilityConfig(config.capabilities),
 			onListenerError: () => logger.warn("a capability settings listener failed"),
 		});
 	let capabilityController = createFallbackCapabilityController();
@@ -547,9 +557,10 @@ async function applyOwned(ctx: Context, config: Config): Promise<void> {
 		releaseActiveSettings();
 		const owner = ++settingsOwner;
 		const previousController = capabilityController;
+		const settings = settingsCtx.get("settings") as CapabilitySettingsService;
 		const controller = createCapabilitySettingsController({
-			settings: settingsCtx.get("settings") as CapabilitySettingsService,
-			...(config.capabilities === undefined ? {} : { base: config.capabilities }),
+			settings: adaptCapabilityHostSettings(settings, entryNamespace),
+			base: readCapabilityConfig(config.capabilities),
 			onListenerError: () => logger.warn("a capability settings listener failed"),
 		});
 		capabilityController = controller;
@@ -558,10 +569,22 @@ async function applyOwned(ctx: Context, config: Config): Promise<void> {
 		const unsubscribe = controller.subscribe((snapshot) => {
 			runtime.set(snapshot.value);
 		});
+		const stopEvents =
+			typeof settings.register !== "function" && hasCapabilitySettingsForms(settings)
+				? watchCapabilityHostSettings(
+						settingsCtx,
+						entryNamespace,
+						() => {
+							controller.reconcile();
+						},
+						() => logger.warn("a capability settings listener failed"),
+					)
+				: () => undefined;
 		let released = false;
 		const release = (): void => {
 			if (released) return;
 			released = true;
+			stopEvents();
 			unsubscribe();
 			controller.dispose();
 			if (owner === settingsOwner) {

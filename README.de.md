@@ -1,5 +1,8 @@
 
 
+> [!WARNING]
+> **Historische Upstream-Dokumentation:** Dieser übernommene Text ist keine aktuelle Anleitung für diesen Fork unter DSH **0.2.0-rc.2**; verwenden Sie stattdessen die aktuellen [README.md](<README.md>), [README.fr.md](<README.fr.md>) und [INSTALL.md](<INSTALL.md>).
+
 <!-- banner -->
 <div align="center">
 

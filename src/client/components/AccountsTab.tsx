@@ -1,6 +1,6 @@
 /** Accounts tab: provider cards, CLI tips, and pull preview. */
 
-import { Fragment, type ReactNode, useEffect, useRef } from "react";
+import { Fragment, type ReactNode, useEffect, useRef, useState } from "react";
 import { PROVIDERS } from "../constants.ts";
 import { allOfficialCliMissing, anyOfficialCliAvailable } from "../display.ts";
 import {
@@ -115,6 +115,8 @@ export function AccountsTab({
 	onRefreshSources,
 	onDismissSourcesNotice,
 }: AccountsTabProps) {
+	const [goConnected, setGoConnected] = useState(false);
+	const knownConnected = useRef<Partial<Record<ProviderSlug, boolean>>>({});
 	const previousPreviewKind = useRef<ProviderSlug | undefined>(undefined);
 	useEffect(() => {
 		if (preview !== undefined) {
@@ -138,6 +140,25 @@ export function AccountsTab({
 			</div>
 		);
 	}
+
+	// Preserve known accounts during transient read errors and reauthorization, as ProviderCard does.
+	// Explicit sign-out clears the remembered connection; model lists and call history do not imply one.
+	const accountCards = [
+		...PROVIDERS.map((definition) => {
+			const observed = status.providers[definition.slug];
+			if (observed.status === "signed-in") knownConnected.current[definition.slug] = true;
+			else if (observed.status === "signed-out") knownConnected.current[definition.slug] = false;
+			else if (
+				observed.status === "error" &&
+				"accounts" in observed &&
+				Array.isArray(observed.accounts) &&
+				observed.accounts.length > 0
+			)
+				knownConnected.current[definition.slug] = true;
+			return { slug: definition.slug, definition, connected: knownConnected.current[definition.slug] === true };
+		}),
+		{ slug: "opencode-go", definition: undefined, connected: goConnected },
+	].sort((left, right) => Number(right.connected) - Number(left.connected));
 
 	return (
 		<>
@@ -173,8 +194,18 @@ export function AccountsTab({
 				/>
 			)}
 			<div style={accountGridStyle}>
-				<OpenCodeGoCard t={t} fallback={status.opencodeGo} onStartConversation={onStartConversation} />
-				{PROVIDERS.map((definition) => {
+				{accountCards.map(({ slug, definition }) => {
+					if (definition === undefined) {
+						return (
+							<OpenCodeGoCard
+								key={slug}
+								t={t}
+								fallback={status.opencodeGo}
+								onStartConversation={onStartConversation}
+								onConnectionChange={setGoConnected}
+							/>
+						);
+					}
 					const providerStatus = status.providers[definition.slug];
 					const expanded = providerStatus.status === "signing-in" || expandedProviders[definition.slug] === true;
 					return (

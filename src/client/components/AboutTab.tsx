@@ -4,7 +4,7 @@ import { PLUGIN_VERSION } from "../constants.ts";
 import { bodyStyle, cardStyle, hintStyle, linkStyle, titleStyle, warningStyle } from "../styles.ts";
 import type { GrokBuildSettingsInjected } from "../types.ts";
 
-const README_URL = "https://github.com/lninghaha/dsh-coding-subscription-oauth#readme";
+const README_URL = "https://github.com/A-Bit-of-Thinking/dsh-coding-subscription-oauth#readme";
 
 export interface AboutTabProps {
 	t: GrokBuildSettingsInjected["t"];

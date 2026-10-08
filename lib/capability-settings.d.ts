@@ -137,6 +137,8 @@ export interface CapabilitySettingsDescriptor {
     readonly base?: unknown;
     readonly user?: unknown;
     readonly revision?: number;
+    readonly schema?: unknown;
+    readonly writable?: boolean;
     readonly applies?: "live" | "restart";
     readonly secrets?: readonly {
         readonly path?: readonly string[];
@@ -155,6 +157,14 @@ export interface CapabilitySettingsService {
     get?(ns: string): unknown;
     update?(ns: string, patch: object, expectedRevision?: number): Promise<void>;
     replace?(ns: string, section: object, expectedRevision?: number): Promise<void>;
+    mutate?(ns: string, ops: readonly ({
+        readonly op: "unset";
+        readonly path: readonly string[];
+    } | {
+        readonly op: "set";
+        readonly path: readonly string[];
+        readonly value: unknown;
+    })[], expectedRevision?: number): Promise<void>;
     register?(ns: string, schema: CapabilitySettingsSchemaType, options?: {
         readonly base?: CapabilitySettingsPatch;
         readonly applies?: "live" | "restart";
