@@ -25,7 +25,7 @@ Availability is still decided by the provider and your plan: listing a model is 
 | Kimi Code | `kimi-code-oauth` | Kimi subscription OAuth |
 | OpenCode Go | `coding-opencode-go` | Separate DSH credential reference |
 
-`codex-oauth-fast` is optional and appears only when a fresh account catalog explicitly permits priority processing. Google Antigravity requires the **separate** `dsh-agy` plugin; this fork's BOM does not certify that plugin's compatibility.
+`codex-oauth-fast` is optional and appears only when a fresh account catalog explicitly permits priority processing. Google Antigravity requires the **separate** `dsh-agy` plugin; this fork's BOM does not certify that plugin's compatibility. Its “Not installed” status means the `agy` adapter is not visible (including inactive adapters or listing failures), not that a Google login is missing.
 
 ## Install the fork, not the original package
 
@@ -57,6 +57,7 @@ After installation, restart the **existing** application/process yourself. Then 
 - Model checkboxes form a draft: **Apply** saves the selection, including an explicitly empty selection.
 - Official CLI credential discovery is read-only. **Pull** is an explicit one-way copy with preview, conflict checks and overwrite confirmation. Official CLI files are never edited.
 - Grok has a live model catalog. Codex/Claude/Kimi primarily use pi-ai plus reviewed additions; new IDs are not automatically imported.
+- Grok's validated discovery metadata is scoped to a local account slot. Switching/importing credentials discards discoveries, not model choices; signing out still resets selection to defaults. Legacy v1–v3 caches restore choices only, without being rewritten on read. Discovery time is not a TTL. Above the cache budget, choices are saved without discovery metadata; the live catalog remains in memory and is fetched again after restart.
 - A credential's local presence does not guarantee upstream acceptance; expired/revoked authorization may require reconnection.
 
 ## Optional capabilities
@@ -65,7 +66,7 @@ Everything below is **off by default** and applies live when enabled:
 
 | Capability | Requirement / limitation |
 | --- | --- |
-| Codex search | Signed-in Codex; private backend endpoint |
+| Codex search | Signed-in Codex; private endpoint; select `codex-oauth-search` in the host web service |
 | Codex usage/quota | Signed-in Codex; provider response can change |
 | Codex image generation/editing | Signed-in Codex; edits restricted to attachments owned by the current session |
 | Images from non-Codex model routes | Explicit extra opt-in; same Codex/session/ownership checks |

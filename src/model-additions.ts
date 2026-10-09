@@ -197,6 +197,7 @@ export const MODEL_ADDITIONS: Record<string, readonly ModelAddition[]> = {
 
 /** Champs indispensables pour qu'un modele sans heritage soit exploitable. */
 const REQUIRED_ON_STANDALONE: readonly (keyof Model<Api>)[] = [
+	"name",
 	"api",
 	"provider",
 	"baseUrl",
@@ -216,6 +217,41 @@ export interface ModelAdditionDiagnostic {
 export interface ResolvedModelAdditions {
 	readonly models: readonly Model<Api>[];
 	readonly diagnostics: readonly ModelAdditionDiagnostic[];
+}
+
+/** Valide le modele final, pas seulement les champs declares dans l'ajout. */
+function invalidModelReason(model: Model<Api>, providerId: string): string | undefined {
+	for (const field of ["id", "name", "api", "provider", "baseUrl"] as const) {
+		if (typeof model[field] !== "string" || model[field].trim() === "") {
+			return `${field} doit etre une chaine non vide`;
+		}
+	}
+	if (model.provider !== providerId) return "provider ne correspond pas au fournisseur demande";
+
+	for (const field of ["contextWindow", "maxTokens"] as const) {
+		if (typeof model[field] !== "number" || !Number.isFinite(model[field]) || model[field] <= 0) {
+			return `${field} doit etre un nombre fini strictement positif`;
+		}
+	}
+
+	if (typeof model.cost !== "object" || model.cost === null || Array.isArray(model.cost)) {
+		return "cost doit etre un objet de tarifs";
+	}
+	for (const field of ["input", "output", "cacheRead", "cacheWrite"] as const) {
+		const value = model.cost[field];
+		if (typeof value !== "number" || !Number.isFinite(value) || value < 0) {
+			return `cost.${field} doit etre un nombre fini non negatif`;
+		}
+	}
+
+	if (typeof model.reasoning !== "boolean") return "reasoning doit etre un booleen";
+	if (!Array.isArray(model.input) || model.input.length === 0) {
+		return "input doit etre un tableau non vide de modalites text/image";
+	}
+	for (const modality of model.input) {
+		if (modality !== "text" && modality !== "image") return "input contient une modalite autre que text/image";
+	}
+	return undefined;
 }
 
 /**
@@ -250,6 +286,7 @@ export function resolveModelAdditions(
 			continue;
 		}
 
+		let base: Model<Api> | undefined;
 		if (baseId === undefined) {
 			const missing = REQUIRED_ON_STANDALONE.filter((field) => overrides[field] === undefined);
 			if (missing.length > 0) {
@@ -260,22 +297,23 @@ export function resolveModelAdditions(
 				});
 				continue;
 			}
-			const standalone = { ...overrides, id: addition.id } as Model<Api>;
-			known.set(standalone.id, standalone);
-			models.push(standalone);
-			continue;
-		}
-
-		const base = known.get(baseId);
-		if (base === undefined) {
-			diagnostics.push({
-				id: addition.id,
-				providerId,
-				reason: `'extends: ${baseId}' ne correspond a aucun modele connu de ce fournisseur`,
-			});
-			continue;
+		} else {
+			base = known.get(baseId);
+			if (base === undefined) {
+				diagnostics.push({
+					id: addition.id,
+					providerId,
+					reason: `'extends: ${baseId}' ne correspond a aucun modele connu de ce fournisseur`,
+				});
+				continue;
+			}
 		}
 		const merged = { ...base, ...overrides, id: addition.id } as Model<Api>;
+		const reason = invalidModelReason(merged, providerId);
+		if (reason !== undefined) {
+			diagnostics.push({ id: addition.id, providerId, reason });
+			continue;
+		}
 		known.set(merged.id, merged);
 		models.push(merged);
 	}

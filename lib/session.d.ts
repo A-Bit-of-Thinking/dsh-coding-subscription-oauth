@@ -13,6 +13,11 @@ export declare class GrokBuildSession {
     private liveIds;
     private liveModels;
     private selectedIds;
+    private selectionLoaded;
+    private catalogOwner;
+    private fetchedAt;
+    private identity;
+    private generation;
     private readonly cacheQueue;
     private source;
     private listingError;
@@ -28,6 +33,8 @@ export declare class GrokBuildSession {
     /** Provider whose id matches the harness route so PiAiAdapter can list models. */
     provider(): Provider;
     loadCachedCatalog(): Promise<void>;
+    /** Capture before startup barriers; an obsolete continuation cannot start a new generation. */
+    deferredCatalogRefresh(): () => Promise<void>;
     refreshLiveCatalog(signal?: AbortSignal): Promise<void>;
     setSelectedModels(ids: readonly string[] | undefined): Promise<void>;
     /**
@@ -35,9 +42,15 @@ export declare class GrokBuildSession {
      * Called after an upstream 401 rejected a locally-valid token.
      */
     invalidateAccessToken(): Promise<void>;
-    /** Refresh host discovery after an account switch/remove without a full logout. */
+    /** Invalidate synchronously; routes never wait for the network rediscovery. */
     notifyCredentialChange(): void;
     logout(): Promise<void>;
+    /** CLI login/import may refresh a fresh session without loading discovery first. */
+    private loadSelectedModelsOnce;
+    private clearDiscovery;
+    private readIdentity;
+    /** Callers must recheck generation synchronously after awaiting this observation. */
+    private isCurrent;
     private writeCache;
 }
 //# sourceMappingURL=session.d.ts.map

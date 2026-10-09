@@ -100,7 +100,10 @@ export declare class OAuthCredentialFileStore implements CredentialStore {
     delete(providerId: string): Promise<void>;
     /** Read-only account list for Settings / API. Never includes tokens. */
     listAccounts(): Promise<readonly AccountSummary[]>;
-    getActiveAccountId(): Promise<string | undefined>;
+    /** Opt-in observation for catalog guards; the default retains legacy migration. */
+    getActiveAccountId(options?: {
+        readOnly?: boolean;
+    }): Promise<string | undefined>;
     /**
      * Read one account's credential without changing activeAccountId.
      * Used by the optional quota-aware pool proxy for sticky per-request routing.

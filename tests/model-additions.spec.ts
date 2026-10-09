@@ -1,4 +1,7 @@
 import type { Api, Model, Provider } from "@earendil-works/pi-ai";
+import { anthropicProvider } from "@earendil-works/pi-ai/providers/anthropic";
+import { kimiCodingProvider } from "@earendil-works/pi-ai/providers/kimi-coding";
+import { openaiCodexProvider } from "@earendil-works/pi-ai/providers/openai-codex";
 import { describe, expect, it } from "vitest";
 import {
 	MODEL_ADDITION_PROVIDERS,
@@ -138,6 +141,142 @@ describe("resolveModelAdditions", () => {
 
 		expect(resolved.models).toEqual([]);
 		expect(resolved.diagnostics).toEqual([]);
+	});
+});
+
+describe("validation du modele final", () => {
+	const invalidCases: { label: string; overrides: Record<string, unknown>; field: string }[] = [
+		{ label: "provider d'un autre fournisseur", overrides: { provider: "anthropic" }, field: "provider" },
+		{ label: "reasoning numerique", overrides: { reasoning: 1 }, field: "reasoning" },
+		{ label: "reasoning null", overrides: { reasoning: null }, field: "reasoning" },
+		{ label: "reasoning absent", overrides: { reasoning: undefined }, field: "reasoning" },
+		{ label: "cost null", overrides: { cost: null }, field: "cost" },
+		{ label: "cost non objet", overrides: { cost: "gratuit" }, field: "cost" },
+		{ label: "cost tableau", overrides: { cost: [] }, field: "cost" },
+	];
+	for (const field of ["id", "name", "api", "provider", "baseUrl"]) {
+		for (const value of ["", " \t\n", null, undefined, 42]) {
+			invalidCases.push({ label: `${field}=${String(value)}`, overrides: { [field]: value }, field });
+		}
+	}
+	for (const field of ["contextWindow", "maxTokens"]) {
+		for (const value of [
+			0,
+			-1,
+			Number.NaN,
+			Number.POSITIVE_INFINITY,
+			Number.NEGATIVE_INFINITY,
+			"128000",
+			null,
+			undefined,
+		]) {
+			invalidCases.push({ label: `${field}=${String(value)}`, overrides: { [field]: value }, field });
+		}
+	}
+	for (const field of ["input", "output", "cacheRead", "cacheWrite"]) {
+		for (const value of [-1, Number.NaN, Number.POSITIVE_INFINITY, Number.NEGATIVE_INFINITY, "0", null, undefined]) {
+			invalidCases.push({
+				label: `cost.${field}=${String(value)}`,
+				overrides: { cost: { ...referenceModel("base").cost, [field]: value } },
+				field: `cost.${field}`,
+			});
+		}
+	}
+	for (const input of [[], ["text", "audio"], ["video"], [null], new Array(1), "text", null, undefined]) {
+		invalidCases.push({ label: `input=${JSON.stringify(input)}`, overrides: { input }, field: "input" });
+	}
+
+	describe.each(["standalone", "heritage"] as const)("%s", (mode) => {
+		it.each(invalidCases)("ecarte $label avec un diagnostic structure", ({ overrides, field }) => {
+			const entry = {
+				...(mode === "standalone" ? referenceModel("ajout-invalide") : { id: "ajout-invalide", extends: "base" }),
+				...overrides,
+			} as unknown as ModelAddition;
+			const resolved = resolveModelAdditions(CODEX, [referenceModel("base")], additionsOf([entry]));
+
+			expect(resolved.models).toEqual([]);
+			expect(resolved.diagnostics).toHaveLength(1);
+			expect(resolved.diagnostics[0]).toMatchObject({
+				id: typeof entry.id === "string" && entry.id.trim() !== "" ? entry.id : "<sans id>",
+				providerId: CODEX,
+			});
+			expect(resolved.diagnostics[0]?.reason).toContain(field);
+		});
+
+		it.each([{ input: ["text"] }, { input: ["text", "image"] }, { input: ["image"] }])(
+			"accepte les modalites $input, tarifs nuls et limites independantes",
+			({ input }) => {
+				const entry = {
+					...(mode === "standalone" ? referenceModel("valide") : { id: "valide", extends: "base" }),
+					api: "custom-api",
+					reasoning: false,
+					input,
+					contextWindow: 100,
+					maxTokens: 200,
+					cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
+					thinkingLevelMap: { off: null, minimal: null, high: "high" },
+				} as ModelAddition;
+				const resolved = resolveModelAdditions(CODEX, [referenceModel("base")], additionsOf([entry]));
+
+				expect(resolved.diagnostics).toEqual([]);
+				expect(resolved.models).toHaveLength(1);
+				const { extends: _baseId, ...expected } = entry;
+				expect(resolved.models[0]).toMatchObject(expected);
+				expect(resolved.models[0]).not.toHaveProperty("extends");
+			},
+		);
+	});
+
+	it("valide aussi les valeurs heritees du catalogue sans rejeter la baseline", () => {
+		const base = { ...referenceModel("base"), cost: { input: -1, output: 2, cacheRead: 0, cacheWrite: 0 } };
+		const resolved = resolveModelAdditions(CODEX, [base], additionsOf([{ id: "ajout", extends: "base" }]));
+
+		expect(resolved.models).toEqual([]);
+		expect(resolved.diagnostics[0]?.reason).toContain("cost.input");
+		expect(
+			withModelAdditions(fakeProvider([base]), CODEX, additionsOf([{ id: "ajout", extends: "base" }])).getModels(),
+		).toEqual([base]);
+	});
+
+	it("ne publie pas un ajout invalide comme source d'heritage", () => {
+		const resolved = resolveModelAdditions(
+			CODEX,
+			[referenceModel("base")],
+			additionsOf([
+				{ id: "invalide", extends: "base", contextWindow: -1 },
+				{ id: "enfant", extends: "invalide", contextWindow: 100 },
+				{ id: "valide", extends: "base" },
+			]),
+		);
+
+		expect(resolved.models.map((model) => model.id)).toEqual(["valide"]);
+		expect(resolved.diagnostics.map((diagnostic) => diagnostic.id)).toEqual(["invalide", "enfant"]);
+	});
+
+	it("un override invalide ne remplace ni la baseline ni la source d'un heritage suivant", () => {
+		const base = referenceModel("base");
+		Object.freeze(base.cost);
+		Object.freeze(base.input);
+		Object.freeze(base);
+		const catalog = Object.freeze([base, referenceModel("autre")]);
+		const entries = Object.freeze([
+			Object.freeze({ id: "base", extends: "base", maxTokens: 0 }),
+			Object.freeze({ id: "enfant", extends: "base", thinkingLevelMap: Object.freeze({ off: null, high: "high" }) }),
+			Object.freeze({ id: "autre", extends: "autre", name: "Nom corrige" }),
+		]);
+		const snapshot = structuredClone({ catalog, entries });
+		const resolved = resolveModelAdditions(CODEX, catalog, additionsOf(entries));
+		const models = withModelAdditions(fakeProvider(catalog), CODEX, additionsOf(entries)).getModels();
+
+		expect(resolved.diagnostics).toEqual([
+			{ id: "base", providerId: CODEX, reason: "maxTokens doit etre un nombre fini strictement positif" },
+		]);
+		expect(models.map((model) => model.id)).toEqual(["base", "autre", "enfant"]);
+		expect(models[0]).toBe(base);
+		expect(models[1]?.name).toBe("Nom corrige");
+		expect(models[2]?.maxTokens).toBe(base.maxTokens);
+		expect(models[2]?.thinkingLevelMap?.off).toBeNull();
+		expect({ catalog, entries }).toEqual(snapshot);
 	});
 });
 
@@ -306,16 +445,18 @@ describe("entrees livrees", () => {
 	});
 
 	it("aucune entree livree n'est ecartee", () => {
-		const codexCatalog = CODEX_OAUTH_PROVIDER.providerFactory().getModels();
-		const claudeCatalog = CLAUDE_CODE_OAUTH_PROVIDER.providerFactory().getModels();
+		const catalogs: Readonly<Record<string, readonly Model<Api>[]>> = {
+			[CODEX]: openaiCodexProvider().getModels(),
+			[MODEL_ADDITION_PROVIDERS.claude]: anthropicProvider().getModels(),
+			[MODEL_ADDITION_PROVIDERS.kimi]: kimiCodingProvider().getModels(),
+		};
 
-		for (const [providerId, catalog] of [
-			[CODEX, codexCatalog],
-			[MODEL_ADDITION_PROVIDERS.claude, claudeCatalog],
-		] as const) {
-			const { models, diagnostics } = resolveModelAdditions(providerId, catalog);
+		for (const providerId of Object.keys(MODEL_ADDITIONS)) {
+			const catalog = catalogs[providerId];
+			expect(catalog, `catalogue brut de ${providerId}`).toBeDefined();
+			const { models, diagnostics } = resolveModelAdditions(providerId, catalog!);
 			expect(diagnostics).toEqual([]);
-			expect(models).toHaveLength(MODEL_ADDITIONS[providerId]?.length ?? 0);
+			expect(models.map((model) => model.id)).toEqual(MODEL_ADDITIONS[providerId]?.map((entry) => entry.id));
 		}
 	});
 });

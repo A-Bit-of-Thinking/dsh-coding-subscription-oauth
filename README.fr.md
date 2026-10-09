@@ -25,7 +25,7 @@ Un modèle présent dans la liste n'est pas une garantie d'accès : le fournisse
 | Kimi Code | `kimi-code-oauth` | OAuth de l'abonnement Kimi |
 | OpenCode Go | `coding-opencode-go` | Référence de clé distincte dans DSH |
 
-`codex-oauth-fast` est facultatif et n'apparaît que si un catalogue récent du compte autorise le traitement prioritaire. Google Antigravity dépend du **plugin séparé** `dsh-agy` ; la compatibilité de ce fork ne certifie pas celle de ce plugin externe.
+`codex-oauth-fast` est facultatif et n'apparaît que si un catalogue récent du compte autorise le traitement prioritaire. Google Antigravity dépend du **plugin séparé** `dsh-agy` ; la compatibilité de ce fork ne certifie pas celle de ce plugin externe. Son statut « Not installed » indique que l'adapter `agy` n'est pas visible (adapter absent/inactif ou listing échoué), pas qu'une connexion Google manque.
 
 ## Installer la bonne version
 
@@ -60,6 +60,7 @@ Après installation, redémarrez vous-même **l'application ou le processus exis
 - Les cases de sélection constituent un brouillon ; **Appliquer** enregistre l'ensemble, y compris une sélection volontairement vide.
 - Le bouton **Pull** des CLI officielles copie les identifiants vers le plugin après aperçu, vérification des conflits et confirmation. La découverte est en lecture seule : les fichiers des CLI officielles ne sont jamais modifiés.
 - Grok dispose d'un catalogue en direct. Codex, Claude et Kimi utilisent surtout pi-ai et les ajouts relus du fork ; les nouveaux identifiants ne sont pas importés automatiquement.
+- Les métadonnées de découverte Grok sont validées et liées à un slot de compte local. Changer/importer les identifiants invalide la découverte, pas les choix de modèles ; la déconnexion conserve son comportement de retour à la sélection par défaut. Les caches v1–v3 ne restaurent que les choix et ne sont pas réécrits à la lecture. La date de découverte n'est pas un TTL. Au-delà du budget du cache, seuls les choix sont persistés : le catalogue live reste en mémoire et sera redécouvert après redémarrage.
 - Une connexion présente localement peut être expirée ou révoquée côté fournisseur ; une reconnexion peut être nécessaire.
 
 ## Fonctions facultatives
@@ -68,7 +69,7 @@ Toutes ces options sont **désactivées par défaut** et prennent effet sans red
 
 | Fonction | Condition ou limite |
 | --- | --- |
-| Recherche Codex | Compte Codex connecté ; endpoint privé |
+| Recherche Codex | Compte connecté ; endpoint privé ; sélectionner `codex-oauth-search` dans le service web hôte |
 | Quotas Codex | Compte Codex connecté ; format fournisseur susceptible de changer |
 | Création et édition d'images Codex | Compte connecté ; édition limitée aux pièces jointes appartenant à la session actuelle |
 | Images depuis un autre modèle | Option supplémentaire explicite ; mêmes contrôles Codex/session/propriété |

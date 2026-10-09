@@ -1,19 +1,21 @@
 import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { KIMI_CODE_OAUTH_PROVIDER } from "../src/oauth-providers.ts";
 import { OAuthProviderSession } from "../src/oauth-session.ts";
 import { GrokBuildSession } from "../src/session.ts";
-import { OAuthCredentialFileStore } from "../src/store.ts";
+import { GrokBuildCredentialStore, OAuthCredentialFileStore } from "../src/store.ts";
 
 const dirs: string[] = [];
 afterEach(async () => {
+	vi.unstubAllEnvs();
 	for (const dir of dirs.splice(0)) await rm(dir, { recursive: true, force: true });
 });
 async function fixture(kind: string) {
 	const dir = await mkdtemp(join(tmpdir(), "selection-contract-"));
 	dirs.push(dir);
+	vi.stubEnv("DSH_HOME", dir);
 	const file = join(dir, "cache", "models.json");
 	const session =
 		kind === "oauth"
@@ -23,7 +25,7 @@ async function fixture(kind: string) {
 					new OAuthCredentialFileStore(KIMI_CODE_OAUTH_PROVIDER.nativeProviderId, join(dir, "auth.json"), "fixture"),
 					file,
 				)
-			: new GrokBuildSession();
+			: new GrokBuildSession(new GrokBuildCredentialStore(join(dir, "auth.json")));
 	Reflect.set(session, "cacheFile", file);
 	const load = () =>
 		session instanceof OAuthProviderSession ? session.loadCachedModels() : session.loadCachedCatalog();

@@ -10,10 +10,14 @@ All notable changes to `dsh-coding-subscription-oauth` are documented here, foll
 - Connected subscription services are presented first in stable order; OpenCode Go uses a compact, initially collapsed account card.
 - Capability settings bridge the modern host's volatile plugin configuration with revision-checked, namespace-owned writes.
 - Replace the English/French README and installation guide with fork-specific instructions, correct repository metadata and the in-app documentation link, and make public maintenance notes machine-independent.
+- Clarify CLI import versus settings persistence, Codex search registration versus host selection, the separate Imagine API credential/billing boundary, and Antigravity adapter visibility versus Google sign-in.
 
 ### Fixed
 
 - Local gateway Grok streaming uses the Grok Build request provider, normalized context and resolved OAuth token, retaining the CLI fingerprint headers instead of looking up an unregistered inference provider in the login collection.
+- Grok catalog discovery is guarded against obsolete asynchronous results after credential changes, competing refreshes and logout, including final microtask publication boundaries and deferred startup work.
+- Grok cache v4 preserves validated context/reasoning overlays and the real discovery timestamp, binds derived metadata to a local account slot without token fingerprints, and retains service-wide selection modes across imports and legacy-cache reads. Oversized discovery data falls back to selection-only persistence rather than an unreadable cache.
+- Validate reviewed model additions after inheritance; invalid entries are skipped with field-level diagnostics without mutating baseline models.
 
 ### Added
 

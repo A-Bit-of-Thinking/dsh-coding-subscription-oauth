@@ -138,7 +138,7 @@ export const en = {
 	sourcesAllMissingHint:
 		"No official CLI login files were found on this host. That is normal on a remote DSH machine — use device-code sign-in instead, or check again after logging in on this same host.",
 	sourcesAvailableHint:
-		"An official CLI login was found on this host. You can pull a one-way copy into dsh from a provider card.",
+		"An official CLI login was found. Pull a copy imports that login into dsh after review; it does not save settings or create a backup.",
 	sourcesPullCopy: "Pull a copy",
 	remoteAccountsTip:
 		"This Settings page looks remote (not loopback). Prefer device-code sign-in; browser pop-ups and local PKCE callbacks often fail from another machine.",
@@ -183,9 +183,9 @@ export const en = {
 	sourceCommitOverwritten: "replaced",
 	capabilitiesTitle: "Subscription capabilities",
 	capabilitiesIntro:
-		"Every switch starts off. Turning one on uses that vendor’s subscription quota, not a separate API-key bill.",
+		"Every switch starts off. Codex operations may use subscription quota; Grok Imagine needs a separate xAI API credential and may incur API charges.",
 	capabilitiesQuotaHint:
-		"Search, images, edits, Fast, usage, and Grok Imagine all consume the matching subscription quota when they run.",
+		"Check each capability’s requirements. Enabling a switch does not confirm provider access or change the selected search provider.",
 	capabilitiesReadOnly: "These switches are read-only in this deployment.",
 	capabilitiesLoading: "Loading capability settings…",
 	capabilitiesLoadFailed: "Could not load capability settings.",
@@ -202,7 +202,8 @@ export const en = {
 		"Completed Imagine video artifacts are kept for 1–168 hours. Lowering retention cleans older artifacts immediately; raising it applies to new artifacts.",
 	capabilityLimitInvalid: "Enter a whole number from {min} through {max}.",
 	capCodexSearch: "Codex subscription search",
-	capCodexSearchHint: "Optional search using Codex quota.",
+	capCodexSearchHint:
+		"Registers search using Codex quota. Select codex-oauth-search in the host web service; this switch does not change the current provider.",
 	capCodexImages: "Codex images",
 	capCodexImagesHint: "Generate images with ChatGPT/Codex quota.",
 	capCodexImageEdits: "Codex image edits",
@@ -499,7 +500,7 @@ export const zh: { [Key in GrokBuildSettingsKey]: string } = {
 	sourcesUnavailable: "没有可用的副本",
 	sourcesAllMissingHint:
 		"这台主机上没有找到官方 CLI 登录文件。远程 DSH 上这很常见——请改用设备码登录；若已在本机 CLI 登录，可再检查一次。",
-	sourcesAvailableHint: "本机发现了官方 CLI 登录。可在对应账户卡片里单向拉取一份副本到 dsh。",
+	sourcesAvailableHint: "发现了官方 CLI 登录。拉取副本会在核对后将该登录单向导入 dsh；它不会保存设置，也不是备份。",
 	sourcesPullCopy: "拉取副本",
 	remoteAccountsTip:
 		"当前 Settings 页面看起来是远程访问（非本机回环）。请优先使用设备码登录；从另一台机器打开时，浏览器弹窗和本地 PKCE 回调经常会失败。",
@@ -543,8 +544,9 @@ export const zh: { [Key in GrokBuildSettingsKey]: string } = {
 	sourceCommitUnchanged: "原本就相同",
 	sourceCommitOverwritten: "已替换",
 	capabilitiesTitle: "订阅能力",
-	capabilitiesIntro: "所有开关默认关闭。打开后消耗的是对应供应商的订阅配额，不是另一套 API-key 账单。",
-	capabilitiesQuotaHint: "搜索、出图、改图、Fast、额度展示和 Grok Imagine 在实际调用时都会消耗对应订阅配额。",
+	capabilitiesIntro:
+		"所有开关默认关闭。Codex 操作可能消耗订阅配额；Grok Imagine 需要单独的 xAI API 凭据，可能产生 API 费用。",
+	capabilitiesQuotaHint: "请核对每项能力的要求。启用开关不保证供应商访问权限，也不会更改已选的搜索供应商。",
 	capabilitiesReadOnly: "当前部署中这些开关为只读。",
 	capabilitiesLoading: "正在加载能力设置…",
 	capabilitiesLoadFailed: "无法加载能力设置。",
@@ -560,7 +562,8 @@ export const zh: { [Key in GrokBuildSettingsKey]: string } = {
 	capVideoTtlHoursHint: "Imagine 视频产物保留 1–168 小时；降低保留时间会立即清理过期旧产物，提高只影响新产物。",
 	capabilityLimitInvalid: "请输入 {min} 到 {max} 之间的整数。",
 	capCodexSearch: "Codex 订阅搜索",
-	capCodexSearchHint: "可选搜索，消耗 Codex 配额。",
+	capCodexSearchHint:
+		"注册使用 Codex 配额的搜索。请在宿主 web 服务中选择 codex-oauth-search；此开关不会更改当前供应商。",
 	capCodexImages: "Codex 出图",
 	capCodexImagesHint: "用 ChatGPT/Codex 配额出图。",
 	capCodexImageEdits: "Codex 改图",

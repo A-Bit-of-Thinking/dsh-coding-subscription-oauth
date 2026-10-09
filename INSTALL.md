@@ -67,6 +67,12 @@ Grok Imagine exige une **clé API `XAI_API_KEY` séparée** dans le service de c
 
 Sur DSH 0.2, les valeurs de `capabilities` sont des champs live de la configuration du plugin. L'API interne conserve le nom logique `coding-subscription-oauth`, mais n'exige pas de recréer manuellement une ancienne section `settings.yaml`.
 
+**Recherche Codex : activé ne signifie pas sélectionné.** La case enregistre le fournisseur `codex-oauth-search` ; choisissez cet identifiant dans `searchProvider` du service web hôte (ou `DSH_WEB_SEARCH_PROVIDER` pour un déploiement géré par environnement). Ce choix est indépendant du modèle de conversation. Le plugin ne remplace pas votre sélection globale. Si plusieurs fournisseurs sont disponibles sans choix explicite, DSH signale une ambiguïté. Une erreur `DEEPSEEK_API_KEY` indique un dispatch DeepSeek : vérifier l'aiguillage avant d'ajouter une clé. Ni la case ni le login Codex ne garantissent l'accès à son endpoint privé.
+
+**Pull a copy** importe une connexion d'une CLI officielle après aperçu/confirmation ; ce n'est ni une validation des capacités, ni une sauvegarde des réglages. Les changements de capacités autorisés s'enregistrent par leurs propres contrôles.
+
+**Antigravity « Not installed »** indique que le fournisseur `agy` n'est pas visible depuis le plugin. Adapter absent/inactif, problème de listing ou contexte différent peuvent produire ce statut ; il ne mesure pas la connexion Google. Ce fork n'installe pas l'adapter et ne certifie pas ses routes d'export. La compatibilité et la sécurité de `dsh-agy` nécessitent une revue séparée avant installation.
+
 ## OpenCode Go
 
 Configurez Go dans sa carte **Comptes et modèles**. Il utilise une référence de clé locale et le fournisseur isolé `coding-opencode-go`. Le mode interne n'a pas besoin de la passerelle.

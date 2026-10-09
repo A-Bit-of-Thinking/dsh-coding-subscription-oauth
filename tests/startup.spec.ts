@@ -1,3 +1,6 @@
+import { mkdtemp, readFile, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import type { Context } from "@deepseek-ai/cordis";
 import Schema from "@deepseek-ai/schemastery";
 import { afterEach, describe, expect, it, vi } from "vitest";
@@ -11,13 +14,17 @@ import {
 	normalizeCapabilitySettings,
 } from "../src/capability-settings.ts";
 import { GrokImagineClient } from "../src/grok-imagine.ts";
+import { GROK_BUILD_MODELS_CACHE_FILENAME } from "../src/ids.ts";
 import { apply, Config } from "../src/index.ts";
 import { MediaStore } from "../src/media-store.ts";
 import { OAuthProviderSession } from "../src/oauth-session.ts";
 import { GrokBuildSession } from "../src/session.ts";
 
-afterEach(() => {
+const temporaryDirectories: string[] = [];
+afterEach(async () => {
 	vi.restoreAllMocks();
+	vi.unstubAllEnvs();
+	for (const dir of temporaryDirectories.splice(0)) await rm(dir, { recursive: true, force: true });
 });
 
 function runFiber(callback?: () => unknown) {
@@ -84,6 +91,82 @@ function liveSettings(initial: CapabilitySettingsPatch): {
 }
 
 describe("plugin startup catalog initialization", () => {
+	it("captures the owner's deferred refresh before all cache loads and cancels it on logout", async () => {
+		const directory = await mkdtemp(join(tmpdir(), "grok-startup-generation-"));
+		temporaryDirectories.push(directory);
+		vi.stubEnv("DSH_HOME", directory);
+		let session!: GrokBuildSession;
+		let releaseOtherLoad!: () => void;
+		let loading!: () => void;
+		let initialized!: () => void;
+		const otherLoad = new Promise<void>((resolve) => {
+			releaseOtherLoad = resolve;
+		});
+		const started = new Promise<void>((resolve) => {
+			loading = resolve;
+		});
+		const completed = new Promise<void>((resolve) => {
+			initialized = resolve;
+		});
+		const order: string[] = [];
+		const capture = GrokBuildSession.prototype.deferredCatalogRefresh;
+		vi.spyOn(GrokBuildSession.prototype, "deferredCatalogRefresh").mockImplementation(function (
+			this: GrokBuildSession,
+		) {
+			session = this;
+			order.push("capture");
+			const refresh = capture.call(this);
+			return async () => {
+				try {
+					await refresh();
+				} finally {
+					initialized();
+				}
+			};
+		});
+		vi.spyOn(GrokBuildSession.prototype, "loadCachedCatalog").mockImplementation(async () => {
+			order.push("grok-load");
+		});
+		vi.spyOn(OAuthProviderSession.prototype, "loadCachedModels")
+			.mockResolvedValue(undefined)
+			.mockImplementationOnce(() => {
+				order.push("other-load");
+				loading();
+				return otherLoad;
+			});
+		const refresh = vi.spyOn(GrokBuildSession.prototype, "refreshLiveCatalog").mockResolvedValue(undefined);
+		const emit = vi.fn();
+		const requiredWeb = requiredWebContext();
+		const disposers: Array<() => void | Promise<void>> = [];
+		const context = {
+			webServer: requiredWeb.webServer,
+			logger: () => ({ warn: vi.fn() }),
+			emit,
+			get: vi.fn(() => undefined),
+			effect: vi.fn((setup: () => unknown) => {
+				const cleanup = setup();
+				if (typeof cleanup === "function") disposers.push(cleanup as () => void | Promise<void>);
+			}),
+			inject: vi.fn((services: readonly string[], callback: (ctx: Context) => unknown) => {
+				if (services.length === 0) return runFiber(() => callback(context));
+				if (services.length === 1 && services[0] === "webServer") return runFiber(() => callback(requiredWeb));
+				return runFiber();
+			}),
+		} as unknown as Context;
+		apply(context, {});
+		await started;
+		expect(order).toEqual(["capture", "grok-load", "other-load"]);
+		const auth = vi.spyOn(session.models, "getAuth").mockResolvedValue(undefined);
+		await session.logout();
+		releaseOtherLoad();
+		await completed;
+		expect(refresh).not.toHaveBeenCalled();
+		expect(auth).not.toHaveBeenCalled();
+		expect(emit).toHaveBeenCalledOnce();
+		await expect(readFile(join(directory, GROK_BUILD_MODELS_CACHE_FILENAME))).rejects.toMatchObject({ code: "ENOENT" });
+		await Promise.all(disposers.map((dispose) => dispose()));
+	});
+
 	it("keeps owner Web routes alive across optional LLM activation, unload, and reload", async () => {
 		vi.spyOn(GrokBuildSession.prototype, "loadCachedCatalog").mockResolvedValue(undefined);
 		vi.spyOn(OAuthProviderSession.prototype, "loadCachedModels").mockResolvedValue(undefined);

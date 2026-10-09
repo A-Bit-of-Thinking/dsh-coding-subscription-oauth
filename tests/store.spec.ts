@@ -1,4 +1,4 @@
-import { chmod, lstat, mkdtemp, readFile, rm, symlink, writeFile } from "node:fs/promises";
+import { chmod, lstat, mkdtemp, readFile, rm, stat, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import type { OAuthCredential } from "@earendil-works/pi-ai";
@@ -360,6 +360,31 @@ describe("OAuthCredentialFileStore AuthDocument v2", () => {
 
 	it("exports the Hub-aligned account cap", () => {
 		expect(OAUTH_MAX_ACCOUNTS).toBe(8);
+	});
+
+	it.each(["safe-user", "has spaces"])(
+		"observes v1 slot %s without migrating bytes or mtime when readOnly",
+		async (accountId) => {
+			const { store, path } = await createStore();
+			const text = `${JSON.stringify({ version: 1, credential: oauthCredential({ accountId, access: "EXAMPLE_ACCESS", refresh: "EXAMPLE_REFRESH" }) }, null, 2)}\n`;
+			await writeFile(path, text, { mode: 0o600 });
+			const before = await stat(path);
+			expect(await store.getActiveAccountId({ readOnly: true })).toBe(accountId === "safe-user" ? accountId : "legacy");
+			expect(await readFile(path, "utf8")).toBe(text);
+			expect((await stat(path)).mtimeMs).toBe(before.mtimeMs);
+		},
+	);
+
+	it("readOnly observation of an absent store does not create its parent directory", async () => {
+		const root = await mkdtemp(join(tmpdir(), "sub-oauth-observe-"));
+		const parent = join(root, "absent");
+		const store = new OAuthCredentialFileStore("test-provider", join(parent, "auth.json"), "test-oauth");
+		try {
+			expect(await store.getActiveAccountId({ readOnly: true })).toBeUndefined();
+			await expect(lstat(parent)).rejects.toMatchObject({ code: "ENOENT" });
+		} finally {
+			await rm(root, { recursive: true, force: true });
+		}
 	});
 
 	it("migrates a v1 document to one account under lock", async () => {

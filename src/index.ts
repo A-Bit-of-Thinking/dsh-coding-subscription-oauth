@@ -513,13 +513,14 @@ async function applyOwned(ctx: Context, config: Config): Promise<void> {
 		runtime.refresh();
 	};
 
+	const refreshStartupCatalog = grok.deferredCatalogRefresh();
 	void Promise.allSettled([grok.loadCachedCatalog(), ...subscriptions.map((session) => session.loadCachedModels())])
 		.then(async (results) => {
 			if (!active) return;
 			if (results.some((result) => result.status === "rejected")) {
 				logger.warn("one or more OAuth model caches could not be loaded; using in-memory fallbacks");
 			}
-			await grok.refreshLiveCatalog();
+			await refreshStartupCatalog();
 		})
 		.catch(() => {
 			// Contain every startup refresh failure so plugin activation cannot leave
@@ -662,6 +663,10 @@ async function applyOwned(ctx: Context, config: Config): Promise<void> {
 	registerOAuthImportRoutes(ctx, oauthImportDestinations(grok, subscriptions), {
 		ownerRequestPolicy,
 		onImported: (event) => {
+			if (event.kind === "grok") {
+				grok.notifyCredentialChange();
+				return;
+			}
 			if (event.kind === "codex") invalidateOptionalAuthState();
 			notifyCatalogChange();
 		},

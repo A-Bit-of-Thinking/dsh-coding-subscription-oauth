@@ -594,7 +594,12 @@ export class OAuthCredentialFileStore implements CredentialStore {
 		return document.accounts.map(summarizeAccount);
 	}
 
-	async getActiveAccountId(): Promise<string | undefined> {
+	/** Opt-in observation for catalog guards; the default retains legacy migration. */
+	async getActiveAccountId(options: { readOnly?: boolean } = {}): Promise<string | undefined> {
+		if (options.readOnly === true) {
+			const loaded = await this.loadDocument({ allowUnreadable: false, persistMigration: false });
+			return loaded?.document.activeAccountId;
+		}
 		const document = await this.mutateDocument({ allowUnreadable: false }, async (current) => {
 			if (current === undefined) return UNCHANGED;
 			return UNCHANGED;
