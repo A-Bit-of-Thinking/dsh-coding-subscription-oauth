@@ -35,6 +35,35 @@ import type {
 	UsageWindowView,
 } from "./types.ts";
 
+/** Only auto-submit a complete Claude callback that belongs to the pending challenge. */
+export function isMatchingClaudeCallback(input: string, authorizationUrl: string | undefined): boolean {
+	try {
+		if (authorizationUrl === undefined) return false;
+		const challenge = new URL(authorizationUrl);
+		if (challenge.origin !== "https://claude.ai" || challenge.pathname !== "/oauth/authorize") return false;
+		const state = challenge.searchParams.get("state");
+		const expected = new URL(challenge.searchParams.get("redirect_uri") ?? "");
+		const callback = new URL(input.trim());
+		return (
+			expected.protocol === "http:" &&
+			expected.hostname === "localhost" &&
+			callback.origin === expected.origin &&
+			callback.pathname === expected.pathname &&
+			callback.username === "" &&
+			callback.password === "" &&
+			callback.hash === "" &&
+			!callback.searchParams.has("error") &&
+			callback.searchParams.getAll("code").length === 1 &&
+			Boolean(callback.searchParams.get("code")) &&
+			callback.searchParams.getAll("state").length === 1 &&
+			Boolean(state) &&
+			callback.searchParams.get("state") === state
+		);
+	} catch {
+		return false;
+	}
+}
+
 export function optionalString(value: unknown): string | undefined {
 	return typeof value === "string" && value.length > 0 && value.length < 500 ? value : undefined;
 }

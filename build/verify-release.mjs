@@ -21,6 +21,7 @@ assert.match(clientConstants, new RegExp(`PLUGIN_VERSION\\s*=\\s*["']${manifest.
 assert.deepEqual(manifest.bin, {
 	"dsh-coding-oauth": "lib/bin.js",
 	"dsh-grok-build": "lib/bin.js",
+	"dsh-claude-bridge": "lib/callback-bridge-bin.js",
 });
 
 for (const path of [
@@ -32,6 +33,8 @@ for (const path of [
 	"lib/bin.js.map",
 	"lib/bin.d.ts",
 	"lib/bin.d.ts.map",
+	"lib/callback-bridge-bin.js",
+	"lib/callback-bridge-bin.js.map",
 	"lib/invariant.js",
 	"lib/invariant.js.map",
 	"lib/invariant.d.ts",
@@ -159,6 +162,14 @@ assert.equal((binSource.match(/^#!\/usr\/bin\/env node$/gm) ?? []).length, 1, "C
 await execute(process.execPath, ["--check", binPath]);
 const cliHelp = await execute(process.execPath, [binPath, "--help"], { timeout: 10_000 });
 assert.match(cliHelp.stdout, /^Usage: dsh-coding-oauth /u);
+
+const bridgePath = resolve(root, manifest.bin["dsh-claude-bridge"]);
+const bridgeSource = await readFile(bridgePath, "utf8");
+assert.match(bridgeSource, /^#!\/usr\/bin\/env node/u);
+assert.doesNotMatch(bridgeSource, /(?:from|import)\s*["'](?:@deepseek-ai|@earendil-works)\//u);
+await execute(process.execPath, ["--check", bridgePath]);
+const bridgeHelp = await execute(process.execPath, [bridgePath, "--help"], { timeout: 10_000 });
+assert.match(bridgeHelp.stdout, /dsh-claude-bridge/u);
 
 async function collectFiles(directory) {
 	const files = [];

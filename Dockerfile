@@ -85,11 +85,13 @@ FROM node:${NODE_VERSION}-bookworm-slim AS dsh-installed
 ENV CI=1 \
     NPM_CONFIG_UPDATE_NOTIFIER=false \
     NPM_CONFIG_LOGLEVEL=info
+# rc.2 calls HMR registerConfig(), removed in later versions admitted by its
+# caret range. Keep this historical runtime on its declared compatible API.
 RUN npm config get registry \
     && npm ping --registry=https://registry.npmjs.org/ \
     && npm view @deepseek-ai/dsh@0.1.1-rc.2 version --registry=https://registry.npmjs.org/ \
     && mkdir -p /opt/dsh \
-    && printf '{"name":"dsh-rc2-smoke","private":true}\n' > /opt/dsh/package.json \
+    && printf '{"name":"dsh-rc2-smoke","private":true,"overrides":{"@deepseek-ai/cordis-plugin-hmr":"1.0.16"}}\n' > /opt/dsh/package.json \
     && npm install --prefix /opt/dsh --ignore-scripts --loglevel=verbose --registry=https://registry.npmjs.org/ @deepseek-ai/dsh@0.1.1-rc.2 \
     && npm install --global pnpm@11.21.0 --ignore-scripts --loglevel=info
 

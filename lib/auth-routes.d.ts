@@ -89,6 +89,9 @@ export type SubscriptionWebAuthStatus = {
     available: string[];
     selected: string[];
     selectionMode?: "default" | "selected";
+    /** Opaque, token-free receipt correlating browser completion with one login operation. */
+    loginAttemptId?: string;
+    completedLoginAttemptId?: string;
 } & ({
     status: "signed-out";
 } | {
@@ -116,7 +119,11 @@ export declare class SubscriptionWebAuth {
     private readonly challengeTimeoutMs;
     private state;
     private operation;
+    private signOutOperation;
+    private disposed;
     private lastLoginError;
+    private loginAttemptId;
+    private completedLoginAttemptId;
     private cancellation;
     private method;
     private loginPersist;
@@ -128,12 +135,14 @@ export declare class SubscriptionWebAuth {
         operationError?: string;
     }>;
     signIn(method: SubscriptionLoginMethod, persist?: LoginPersistOptions): Promise<SubscriptionLoginChallenge>;
-    submitCode(code: string): Promise<void>;
+    submitCode(code: string, expectedAttemptId?: string): Promise<void>;
     cancel(): Promise<void>;
     setModels(ids: readonly string[] | undefined): Promise<void>;
     setActiveAccount(id: string): Promise<void>;
     removeAccount(id: string): Promise<void>;
+    private refreshStoredStateWhenIdle;
     signOut(): Promise<void>;
+    private requireLoginAvailable;
     dispose(): Promise<void>;
     private baseStatus;
     private readStoredStatus;

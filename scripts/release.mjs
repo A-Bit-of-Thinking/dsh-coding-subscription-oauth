@@ -130,6 +130,8 @@ for (const required of [
 	"lib/client.js",
 	"lib/bin.js",
 	"lib/invariant.js",
+	"lib/callback-bridge-bin.js",
+	"docs/remote-claude-bridge.md",
 	"compatibility/dsh-bom.json",
 ]) {
 	if (!packed.has(required)) fail(`packed release is missing ${required}`);
@@ -137,6 +139,10 @@ for (const required of [
 const packedBin = report.files.find((entry) => entry.path === "lib/bin.js");
 if (process.platform !== "win32" && typeof packedBin?.mode === "number" && (packedBin.mode & 0o111) === 0) {
 	fail(`packed CLI is not executable: lib/bin.js (${packedBin.mode.toString(8)})`);
+}
+const packedBridge = report.files.find((entry) => entry.path === "lib/callback-bridge-bin.js");
+if (process.platform !== "win32" && typeof packedBridge?.mode === "number" && (packedBridge.mode & 0o111) === 0) {
+	fail(`packed bridge CLI is not executable: lib/callback-bridge-bin.js (${packedBridge.mode.toString(8)})`);
 }
 const forbiddenFragments = [
 	"docs/local",

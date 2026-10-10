@@ -24,6 +24,7 @@ docs/*
 !docs/repair-candidate.md
 !docs/repair-verification.md
 !docs/03-dsh-alpha-smoke.md
+!docs/remote-claude-bridge.md
 !docs/research/
 !docs/research/**
 reference/

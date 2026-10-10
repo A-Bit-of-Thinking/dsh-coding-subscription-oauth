@@ -9,6 +9,7 @@ import { createRoot } from "react-dom/client";
 import { registerAccountEntry } from "./account-entry-owner.ts";
 import { jsonRequest } from "./api.ts";
 import { registerCodexImageToolviews } from "./CodexImageToolview.tsx";
+import { mountClaudeBridgeReturn, takeClaudeBridgeReturn } from "./claude-bridge-return.tsx";
 import { STATUS_PATH } from "./constants.ts";
 import { createDshClientAdapter } from "./dshClientAdapter.ts";
 import type { GrokBuildSettingsInjected } from "./GrokBuildSettings.tsx";
@@ -174,11 +175,14 @@ function mountIndependentEntry(t: GrokBuildSettingsInjected["t"]) {
 }
 
 export function apply(ctx: ClientContext): void {
+	const callback = takeClaudeBridgeReturn(window.location, window.history);
 	const dsh = createDshClientAdapter(ctx);
 	dsh.assertCompatible();
 	const namespace = "settings.grok-build";
 	dsh.effect(() => dsh.locale.register(namespace, { zh, en }), "dsh-coding-subscription-oauth: settings copy");
 	const t = dsh.locale.bind(namespace) as GrokBuildSettingsInjected["t"];
+	if (callback !== undefined)
+		dsh.effect(() => mountClaudeBridgeReturn(callback, t), "coding-oauth: Claude callback return");
 	const stop = registerAccountEntry(ctx, {
 		role: "standalone",
 		readOwner: async () => (await jsonRequest<CodingOAuthStatus>(STATUS_PATH)).uiOwner,

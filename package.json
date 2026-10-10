@@ -37,7 +37,8 @@
   "types": "lib/index.d.ts",
   "bin": {
     "dsh-coding-oauth": "lib/bin.js",
-    "dsh-grok-build": "lib/bin.js"
+    "dsh-grok-build": "lib/bin.js",
+    "dsh-claude-bridge": "lib/callback-bridge-bin.js"
   },
   "scripts": {
     "check:bom": "node build/verify-dsh-bom.mjs",
@@ -94,6 +95,7 @@
     "docs/repair-verification.md",
     "docs/02-architecture.md",
     "docs/02-architecture.zh-CN.md",
+    "docs/remote-claude-bridge.md",
     "compatibility/dsh-bom.json",
     "README.zh-CN.md",
     "README.ja.md",
