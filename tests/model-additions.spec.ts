@@ -412,8 +412,8 @@ describe("entrees livrees", () => {
 		expect(added?.input).toEqual(["text", "image"]);
 		expect(added?.maxTokens).toBe(128_000);
 
-		// La fenetre est volontairement celle que le backend Codex annonce.
-		expect(added?.contextWindow).toBe(272_000);
+		// Valeur annoncee par le backend Codex OAuth pour ce slug.
+		expect(added?.contextWindow).toBe(418_000);
 
 		// « none » n'est pas supporte par ce slug : off doit valoir null.
 		const levels = added?.thinkingLevelMap as Record<string, unknown> | undefined;
