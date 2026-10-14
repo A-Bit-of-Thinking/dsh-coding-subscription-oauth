@@ -40,6 +40,8 @@ export interface AccountSummary {
     label?: string;
     expires: number;
     accountId?: string;
+    /** Explicit internal routing observation only; omitted from ordinary status rows. */
+    createdAt?: number;
 }
 export declare function isValidAccountId(value: unknown): value is AccountId;
 /**
@@ -98,8 +100,11 @@ export declare class OAuthCredentialFileStore implements CredentialStore {
      */
     invalidate(providerId: string): Promise<boolean>;
     delete(providerId: string): Promise<void>;
-    /** Read-only account list for Settings / API. Never includes tokens. */
-    listAccounts(): Promise<readonly AccountSummary[]>;
+    /** Account list without tokens. Legacy default keeps migration; observation can opt out. */
+    listAccounts(options?: {
+        readOnly?: boolean;
+        includeCreatedAt?: boolean;
+    }): Promise<readonly AccountSummary[]>;
     /** Opt-in observation for catalog guards; the default retains legacy migration. */
     getActiveAccountId(options?: {
         readOnly?: boolean;
@@ -108,7 +113,9 @@ export declare class OAuthCredentialFileStore implements CredentialStore {
      * Read one account's credential without changing activeAccountId.
      * Used by the optional quota-aware pool proxy for sticky per-request routing.
      */
-    readAccount(id: string): Promise<OAuthCredential | undefined>;
+    readAccount(id: string, options?: {
+        readOnly?: boolean;
+    }): Promise<OAuthCredential | undefined>;
     /**
      * Serialized refresh/write for one account id. Does not move activeAccountId.
      * Returns undefined when the account is absent (caller treats as missing credential).

@@ -210,6 +210,7 @@ export const PROVIDERS: readonly ProviderCardDefinition[] = [
 
 export const SETTINGS_TABS: readonly { id: SettingsTabId; label: GrokBuildSettingsKey }[] = [
 	{ id: "accounts", label: "tabAccounts" },
+	{ id: "routing", label: "tabRouting" },
 	{ id: "gateway", label: "tabGateway" },
 	{ id: "capabilities", label: "tabCapabilities" },
 	{ id: "about", label: "tabAbout" },

@@ -24,6 +24,7 @@ import type {
 	SourceStatus,
 	UsageView,
 } from "../types.ts";
+import { AccountRoutingPanel } from "./AccountRoutingPanel.tsx";
 import { Badge } from "./Badge.tsx";
 import { CliPullPreview } from "./CliPullPreview.tsx";
 import { NoticeBanner } from "./NoticeBanner.tsx";
@@ -273,6 +274,7 @@ export function AccountsTab({
 						</Fragment>
 					);
 				})}
+				<AccountRoutingPanel t={t} />
 				<div style={cardStyle}>
 					<div style={rowStyle}>
 						<div>

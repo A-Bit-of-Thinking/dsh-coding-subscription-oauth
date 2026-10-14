@@ -29,7 +29,7 @@ export type CapabilityFlagKey =
 	| "grokImagineVideo";
 export type CapabilityLimitKey = "searchResults" | "imageCount" | "videoArtifactTtlMs";
 export type CapabilitySettingKey = CapabilityFlagKey | CapabilityLimitKey;
-export type SettingsTabId = "accounts" | "capabilities" | "gateway" | "about";
+export type SettingsTabId = "accounts" | "routing" | "capabilities" | "gateway" | "about";
 export type CopyField = "openai" | "anthropic" | "key";
 
 export type GrokStatus =

@@ -15,6 +15,8 @@ import { assertUsableApiKey, type RetryPolicyConfig, RetryPolicySchema } from "@
 import z from "@deepseek-ai/schemastery";
 import type { Credential, OAuthCredential } from "@earendil-works/pi-ai";
 import { acquireCodingOAuthRuntime, CODING_OAUTH_CORE_ABI, type CodingOAuthRuntime } from "dsh-coding-oauth-core";
+import { ACCOUNT_ROUTES_FILENAME, AccountRouteRegistry } from "./account-routes.ts";
+import { AccountRoutingRuntime } from "./account-runtime.ts";
 import { createCodingOAuthAdapter } from "./adapter.ts";
 import { registerCodingOAuthRoutes } from "./auth-routes.ts";
 import {
@@ -90,6 +92,17 @@ import {
 } from "./opencode-go-connection.ts";
 import { installOpenCodeGoHeaderCompatibility, OpenCodeGoHeaderState } from "./opencode-go-header.ts";
 import { acquireCodingOAuthProxy } from "./proxy.ts";
+import {
+	type RoutingConfig,
+	type RoutingConfigReference,
+	RoutingConfigSchema,
+	readRoutingConfig,
+} from "./routing-config.ts";
+import { type RoutingPromptRegistry, registerRoutingGuidance } from "./routing-guidance.ts";
+import { RoutingPolicyAdapter } from "./routing-policy.ts";
+import { registerRoutingRoutes } from "./routing-routes.ts";
+import { createRoutingSettingsController } from "./routing-settings.ts";
+import { createRoutingStatusTool } from "./routing-tools.ts";
 import { GrokBuildSession } from "./session.ts";
 import { GrokBuildCredentialStore, type OAuthCredentialFileStore } from "./store.ts";
 import { createOwnerRequestPolicy, safeguardOwnerRequestPolicy } from "./web-origin.ts";
@@ -286,6 +299,8 @@ export interface Config {
 	retryPolicy?: RetryPolicyConfig;
 	/** Live Config reference; plain composition values remain accepted by apply(). */
 	capabilities?: CapabilitySettingsPatch | CapabilitySettingsReference;
+	/** Fixed accounts, explicit quota refresh and full operator guidance. All opt-ins default off. */
+	routing?: Partial<RoutingConfig> | RoutingConfigReference;
 	/** Opt-in isolated local OpenAI-compatible gateway. Default off. */
 	gateway?: Partial<GatewayConfig>;
 	/** Owner-only request authorization for loopback, SSH tunnels, and trusted HTTPS proxies. */
@@ -306,6 +321,7 @@ export const Config = z.object({
 	proxyKimi: z.boolean().default(false),
 	retryPolicy: RetryPolicySchema,
 	capabilities: CapabilitySettingsSchema.volatile(),
+	routing: RoutingConfigSchema.volatile(),
 	gateway: GatewayConfigSchema,
 	ownerRequest: z.object({
 		loopbackAccessMode: z.union([z.const("loopback"), z.const("ssh-tunnel")]),
@@ -483,8 +499,10 @@ async function applyOwned(ctx: Context, config: Config): Promise<void> {
 		"dsh-coding-subscription-oauth: startup lifetime",
 	);
 	let invalidateOptionalAuthState = (): void => undefined;
+	let accountRouting: AccountRoutingRuntime | undefined;
 	const notifyCatalogChange = (): void => {
 		if (!active) return;
+		void accountRouting?.reconcile();
 		try {
 			ctx.emit("llm/adapters-updated");
 		} catch (error) {
@@ -502,6 +520,68 @@ async function applyOwned(ctx: Context, config: Config): Promise<void> {
 				notifyCatalogChange();
 			}),
 	);
+	accountRouting = new AccountRoutingRuntime({
+		registry: new AccountRouteRegistry(join(dirname(grok.store.filename), ACCOUNT_ROUTES_FILENAME)),
+		sessions: subscriptions,
+		current: () => readRoutingConfig(config.routing),
+		resolveAttachments: () => ctx.get("attachments"),
+		onError: () => logger.warn("Account route registration failed closed"),
+	});
+	const routedAccounts = accountRouting;
+	let routingConfigSignature = JSON.stringify(readRoutingConfig(config.routing));
+	const routingChanged = new Set<() => void>();
+	ctx.effect(
+		() =>
+			watchCapabilityHostSettings(
+				ctx,
+				entryNamespace,
+				() => {
+					const next = JSON.stringify(readRoutingConfig(config.routing));
+					if (next === routingConfigSignature) return;
+					routingConfigSignature = next;
+					void routedAccounts.reconcile();
+					for (const listener of routingChanged) listener();
+				},
+				() => logger.warn("Account routing settings listener failed"),
+			),
+		"coding-oauth: live account routing configuration",
+	);
+	ctx.effect(() => () => routedAccounts.dispose(), "coding-oauth: account route lifetime");
+	ctx.inject(["systemPrompt"], (promptCtx) => {
+		const registry = promptCtx.get("systemPrompt") as RoutingPromptRegistry;
+		promptCtx.effect(
+			() => registerRoutingGuidance(registry, () => readRoutingConfig(config.routing), routedAccounts),
+			"coding-oauth: complete operator routing policy",
+		);
+	});
+	ctx.inject(["tools"], async (toolCtx) => {
+		const tool = await createRoutingStatusTool({
+			current: () => readRoutingConfig(config.routing),
+			accounts: routedAccounts,
+		});
+		const tools = toolCtx.get("tools") as CapabilityToolRegistry;
+		// Registered only while some routing option is on, so a default install adds no tool schema.
+		let unregister: (() => void) | undefined;
+		const sync = (): void => {
+			const settings = readRoutingConfig(config.routing);
+			const wanted = settings.enabled || settings.guidanceEnabled || settings.usageEnabled;
+			if (wanted && unregister === undefined) unregister = tools.register(tool);
+			else if (!wanted && unregister !== undefined) {
+				unregister();
+				unregister = undefined;
+			}
+		};
+		sync();
+		routingChanged.add(sync);
+		toolCtx.effect(
+			() => () => {
+				routingChanged.delete(sync);
+				unregister?.();
+				unregister = undefined;
+			},
+			"coding-oauth: subscription status tool",
+		);
+	});
 	const codex = requireSubscription(subscriptions, CODEX_PI_PROVIDER);
 	const opencodeGo = new OpenCodeGoHeaderState();
 	const codexAuth = codexAuthFromSession(codex);
@@ -529,6 +609,8 @@ async function applyOwned(ctx: Context, config: Config): Promise<void> {
 		});
 
 	let settingsOwner = 0;
+	// The live host settings service, shared by the routing options tab (revision-checked writes).
+	let hostSettings: CapabilitySettingsService | undefined;
 	const createFallbackCapabilityController = (): ReturnType<typeof createCapabilitySettingsController> =>
 		createCapabilitySettingsController({
 			base: readCapabilityConfig(config.capabilities),
@@ -559,6 +641,7 @@ async function applyOwned(ctx: Context, config: Config): Promise<void> {
 		const owner = ++settingsOwner;
 		const previousController = capabilityController;
 		const settings = settingsCtx.get("settings") as CapabilitySettingsService;
+		hostSettings = settings;
 		const controller = createCapabilitySettingsController({
 			settings: adaptCapabilityHostSettings(settings, entryNamespace),
 			base: readCapabilityConfig(config.capabilities),
@@ -585,6 +668,7 @@ async function applyOwned(ctx: Context, config: Config): Promise<void> {
 		const release = (): void => {
 			if (released) return;
 			released = true;
+			if (hostSettings === settings) hostSettings = undefined;
 			stopEvents();
 			unsubscribe();
 			controller.dispose();
@@ -644,6 +728,16 @@ async function applyOwned(ctx: Context, config: Config): Promise<void> {
 		controller: capabilityRoutesController,
 		usage: () => usage.read(),
 		credentialInfo: () => describeImagineCredential(ctx.get("credentials") as CredentialProvider | undefined),
+		ownerRequestPolicy,
+	});
+	registerRoutingRoutes(ctx, {
+		current: () => readRoutingConfig(config.routing),
+		accounts: routedAccounts,
+		settings: createRoutingSettingsController({
+			settings: () => hostSettings,
+			entryNamespace: () => entryNamespace,
+			current: () => readRoutingConfig(config.routing),
+		}),
 		ownerRequestPolicy,
 	});
 	registerGatewayRoutes(ctx, gateway, ownerRequestPolicy);
@@ -760,11 +854,21 @@ async function applyOwned(ctx: Context, config: Config): Promise<void> {
 	// Only adapters and LLM-backed model resolution depend on this service. Its
 	// child fiber may unload and reload without disturbing OAuth/Web ownership.
 	ctx.inject(["llm"], (llmCtx) =>
-		applyOwnedLlm(llmCtx, config, { grok, subscriptions, runtime, codexAuth, codexModels, opencodeGo, logger }),
+		applyOwnedLlm(llmCtx, config, {
+			grok,
+			subscriptions,
+			runtime,
+			codexAuth,
+			codexModels,
+			opencodeGo,
+			logger,
+			accountRouting: routedAccounts,
+		}),
 	);
 }
 
 interface OwnedLlmDependencies {
+	readonly accountRouting: AccountRoutingRuntime;
 	readonly grok: GrokBuildSession;
 	readonly subscriptions: readonly OAuthProviderSession[];
 	readonly runtime: CapabilityRuntimeState;
@@ -783,15 +887,29 @@ function applyOwnedLlm(ctx: Context, config: Config, owner: OwnedLlmDependencies
 	);
 	const resolveCodexImageRoute: ResolveCodexImageRoute = (exec) =>
 		resolveCodexImageRouteFromLlm(exec, (provider, model, signal) => ctx.llm.resolveModelInfo(provider, model, signal));
+	const guard = (adapter: import("@deepseek-ai/dsh-llm").LlmAdapter) =>
+		new RoutingPolicyAdapter(adapter, {
+			current: () => readRoutingConfig(config.routing),
+			familyForRoute: (provider) =>
+				OAUTH_PROVIDER_DEFINITIONS.find(
+					(definition) => provider === definition.route || provider.startsWith(`${definition.route}-account-`),
+				)?.slug ?? (provider === "grok-build" ? "grok" : provider === "codex-oauth-fast" ? "codex" : undefined),
+		});
 	const adapterRegistration = ctx.llm.registerAdapter(
 		[...CODING_OAUTH_ROUTES],
-		createCodingOAuthAdapter(owner.grok, owner.subscriptions, () => ctx.get("attachments"), config.retryPolicy, {
-			codexFast: {
-				isEligible: (modelId) => owner.runtime.current().codexFast && owner.codexModels.isPriorityEligible(modelId),
-			},
-		}),
+		guard(
+			createCodingOAuthAdapter(owner.grok, owner.subscriptions, () => ctx.get("attachments"), config.retryPolicy, {
+				codexFast: {
+					isEligible: (modelId) => owner.runtime.current().codexFast && owner.codexModels.isPriorityEligible(modelId),
+				},
+			}),
+		),
 	);
 	ctx.effect(() => adapterRegistration, "dsh-coding-subscription-oauth: OAuth LLM adapters");
+	ctx.effect(
+		() => owner.accountRouting.attach((routes, adapter) => ctx.llm.registerAdapter(routes, guard(adapter))),
+		"coding-oauth: fixed account LLM adapters",
+	);
 	ctx.effect(
 		() =>
 			bindCodexFastRoute(owner.runtime, owner.codexModels, adapterRegistration, {
