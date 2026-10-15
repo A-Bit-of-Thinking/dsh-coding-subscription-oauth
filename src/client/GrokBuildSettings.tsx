@@ -8,6 +8,7 @@ import { AboutTab } from "./components/AboutTab.tsx";
 import { AccountsTab } from "./components/AccountsTab.tsx";
 import { CapabilitiesTab } from "./components/CapabilitiesTab.tsx";
 import { GatewayTab } from "./components/GatewayTab.tsx";
+import { RoutingTab } from "./components/RoutingTab.tsx";
 import type { SettingsTabHint } from "./components/SettingsTabs.tsx";
 import { SettingsTabs } from "./components/SettingsTabs.tsx";
 import {
@@ -823,6 +824,7 @@ export function GrokBuildSettings({ t, close, initialTab }: GrokBuildSettingsPro
 						}}
 					/>
 				) : null}
+				{activeTab === "routing" ? <RoutingTab t={t} /> : null}
 				{activeTab === "about" ? <AboutTab t={t} /> : null}
 			</div>
 		</section>

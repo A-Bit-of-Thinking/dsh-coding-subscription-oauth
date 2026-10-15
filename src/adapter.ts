@@ -124,7 +124,7 @@ const CODING_OAUTH_RETRY_POLICY = {
 	backoff: { initialDelayMs: 5_000, maxDelayMs: 80_000, jitterRatio: 0.1 },
 };
 
-function profile(
+export function codingOAuthProfile(
 	provider: string,
 	displayName: string,
 	piProvider: ResolvedPiAiProviderProfile["piProvider"],
@@ -161,7 +161,13 @@ export function createGrokBuildAdapter(
 			new Map<string, ResolvedPiAiProviderProfile>([
 				[
 					GROK_BUILD_ROUTE,
-					profile(GROK_BUILD_ROUTE, "xAI Grok Build", session.provider(), undefined, grokBuildFingerprintHeaders()),
+					codingOAuthProfile(
+						GROK_BUILD_ROUTE,
+						"xAI Grok Build",
+						session.provider(),
+						undefined,
+						grokBuildFingerprintHeaders(),
+					),
 				],
 			]),
 		resolveApiKey: async () =>
@@ -266,12 +272,23 @@ export function createCodingOAuthAdapter(
 			const profiles = new Map<string, ResolvedPiAiProviderProfile>();
 			profiles.set(
 				GROK_BUILD_ROUTE,
-				profile(GROK_BUILD_ROUTE, "xAI Grok Build", grok.provider(), retryPolicy, grokBuildFingerprintHeaders()),
+				codingOAuthProfile(
+					GROK_BUILD_ROUTE,
+					"xAI Grok Build",
+					grok.provider(),
+					retryPolicy,
+					grokBuildFingerprintHeaders(),
+				),
 			);
 			for (const session of subscriptions) {
 				profiles.set(
 					session.definition.nativeProviderId,
-					profile(session.definition.nativeProviderId, session.definition.displayName, session.provider(), retryPolicy),
+					codingOAuthProfile(
+						session.definition.nativeProviderId,
+						session.definition.displayName,
+						session.provider(),
+						retryPolicy,
+					),
 				);
 			}
 			if (codexFast !== undefined && codexSession !== undefined) {
@@ -294,7 +311,7 @@ export function createCodingOAuthAdapter(
 				};
 				profiles.set(
 					CODEX_OAUTH_FAST_ROUTE,
-					profile(
+					codingOAuthProfile(
 						CODEX_OAUTH_FAST_ROUTE,
 						"OpenAI Codex Fast requested",
 						fastProvider as unknown as ResolvedPiAiProviderProfile["piProvider"],

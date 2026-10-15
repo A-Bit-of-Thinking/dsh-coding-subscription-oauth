@@ -4,6 +4,18 @@ All notable changes to `dsh-coding-subscription-oauth` are documented here, foll
 
 ## Unreleased — community fork
 
+### Added
+
+- Opt-in fixed account routes (`routing.enabled`, default off): every connected subscription account gets its own stable, opaque route (`<provider>-account-<random>`) with an isolated credential scope, so several accounts can be used at the same time without switching the global active account. Wire transport keeps the native provider identity. Account routes retry only an authentication failure once and never rate-limit loops.
+- Opt-in Claude quota reading (`routing.usageEnabled`, default off): an explicit refresh reads the five-hour and weekly windows of each Claude account from a private, unverified endpoint. Unknown or stale data is shown as such, never as zero. Tested with mocks only; not verified against a live account.
+- Opt-in routing guidance and guard (`routing.guidanceEnabled`, `routing.enforcePolicy`, `routing.policyJson`, all off/empty by default): the operator's complete policy text is delivered to every agent system prompt (head and children), the `coding_subscription_status` tool exposes the policy, routes and cached quotas, and the guard rejects a disallowed model/effort on this plugin's routes without substituting anything. The plugin ships no personal policy.
+- "Routing" settings tab (four independent switches, policy editor with file import, revision-checked save that keeps your draft on conflict) and a read-only "Account routes and quotas" panel in the Accounts tab (loads only when opened).
+
+### Known limits
+
+- Sessions already running keep their original model whitelist; new routes may need a new session or a host-side whitelist refresh. This plugin does not patch the host.
+- The guard covers this plugin's routes only, not other providers, native web tools, or a spawn admission check.
+
 ### Changed
 
 - Target the exact DSH 0.2.0-rc.2 BOM and adapt the host/pi-ai contracts; package version remains 0.8.5 (no fork-specific npm publication).

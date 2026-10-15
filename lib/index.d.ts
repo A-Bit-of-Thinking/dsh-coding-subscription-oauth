@@ -4,6 +4,7 @@ import z from "@deepseek-ai/schemastery";
 import { type CapabilitySettingsReference } from "./capability-host-settings.js";
 import { type CapabilitySettingsPatch } from "./capability-settings.js";
 import { type GatewayConfig } from "./gateway-config.js";
+import { type RoutingConfig, type RoutingConfigReference } from "./routing-config.js";
 export type { CodingOAuthParticipant, CodingOAuthRuntime, DshHostCapabilities, OwnerRequestPolicy as CoreOwnerRequestPolicy, } from "dsh-coding-oauth-core";
 export { acquireCodingOAuthRuntime, CODING_OAUTH_CORE_ABI, } from "dsh-coding-oauth-core";
 export { createCodingOAuthAdapter, createGrokBuildAdapter, preferredGrokBuildModel } from "./adapter.js";
@@ -59,6 +60,8 @@ export interface Config {
     retryPolicy?: RetryPolicyConfig;
     /** Live Config reference; plain composition values remain accepted by apply(). */
     capabilities?: CapabilitySettingsPatch | CapabilitySettingsReference;
+    /** Fixed accounts, explicit quota refresh and full operator guidance. All opt-ins default off. */
+    routing?: Partial<RoutingConfig> | RoutingConfigReference;
     /** Opt-in isolated local OpenAI-compatible gateway. Default off. */
     gateway?: Partial<GatewayConfig>;
     /** Owner-only request authorization for loopback, SSH tunnels, and trusted HTTPS proxies. */
@@ -100,6 +103,19 @@ export declare const Config: z<Schemastery.ObjectS<NoInfer<{
         searchResults: z<number, number, "defined">;
         imageCount: z<number, number, "defined">;
         videoArtifactTtlMs: z<number, number, "defined">;
+    }>>>, "volatile">;
+    routing: z<NoInfer<Schemastery.ObjectS<NoInfer<{
+        enabled: z<boolean, boolean, "defined">;
+        usageEnabled: z<boolean, boolean, "defined">;
+        guidanceEnabled: z<boolean, boolean, "defined">;
+        enforcePolicy: z<boolean, boolean, "defined">;
+        policyJson: z<string, string, "defined">;
+    }>>>, NoInfer<Schemastery.ObjectT<NoInfer<{
+        enabled: z<boolean, boolean, "defined">;
+        usageEnabled: z<boolean, boolean, "defined">;
+        guidanceEnabled: z<boolean, boolean, "defined">;
+        enforcePolicy: z<boolean, boolean, "defined">;
+        policyJson: z<string, string, "defined">;
     }>>>, "volatile">;
     gateway: z<Partial<GatewayConfig>>;
     ownerRequest: z<Schemastery.ObjectS<NoInfer<{
@@ -157,6 +173,19 @@ export declare const Config: z<Schemastery.ObjectS<NoInfer<{
         searchResults: z<number, number, "defined">;
         imageCount: z<number, number, "defined">;
         videoArtifactTtlMs: z<number, number, "defined">;
+    }>>>, "volatile">;
+    routing: z<NoInfer<Schemastery.ObjectS<NoInfer<{
+        enabled: z<boolean, boolean, "defined">;
+        usageEnabled: z<boolean, boolean, "defined">;
+        guidanceEnabled: z<boolean, boolean, "defined">;
+        enforcePolicy: z<boolean, boolean, "defined">;
+        policyJson: z<string, string, "defined">;
+    }>>>, NoInfer<Schemastery.ObjectT<NoInfer<{
+        enabled: z<boolean, boolean, "defined">;
+        usageEnabled: z<boolean, boolean, "defined">;
+        guidanceEnabled: z<boolean, boolean, "defined">;
+        enforcePolicy: z<boolean, boolean, "defined">;
+        policyJson: z<string, string, "defined">;
     }>>>, "volatile">;
     gateway: z<Partial<GatewayConfig>>;
     ownerRequest: z<Schemastery.ObjectS<NoInfer<{

@@ -118,7 +118,7 @@ function titles(): string[] {
 }
 
 function expectedTitles(...slugs: (ProviderSlug | "go")[]): string[] {
-	return [...slugs.map((slug) => slug === "go" ? en.opencodeGoTitle : en[PROVIDERS.find((item) => item.slug === slug)!.titleKey]), en.antigravityTitle];
+	return [...slugs.map((slug) => slug === "go" ? en.opencodeGoTitle : en[PROVIDERS.find((item) => item.slug === slug)!.titleKey]), en.routingTitle, en.antigravityTitle];
 }
 
 it("stably places connected OAuth services first and active Go after them, without changing the provider table", async () => {

@@ -164,7 +164,8 @@ describe("modern capability host settings", () => {
 		for (const key of ["proxy", "proxyKimi", "retryPolicy", "gateway", "ownerRequest"]) {
 			expect(Config.dict![key]!.meta.volatile).not.toBe(true);
 		}
-		expect(Object.keys(formSchema().dict!)).toEqual(["capabilities"]);
+		// The only live (volatile) forms: capabilities and the opt-in account routing.
+		expect(Object.keys(formSchema().dict!)).toEqual(["capabilities", "routing"]);
 	});
 
 	it("locates the owning profile entry through injection ancestry, never a descriptor's first row", () => {

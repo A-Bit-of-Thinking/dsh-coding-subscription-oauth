@@ -70,6 +70,8 @@ export interface AccountSummary {
 	label?: string;
 	expires: number;
 	accountId?: string;
+	/** Explicit internal routing observation only; omitted from ordinary status rows. */
+	createdAt?: number;
 }
 
 export function isValidAccountId(value: unknown): value is AccountId {
@@ -584,14 +586,18 @@ export class OAuthCredentialFileStore implements CredentialStore {
 		await withFileLock(this.filename, () => rm(this.filename, { force: true }));
 	}
 
-	/** Read-only account list for Settings / API. Never includes tokens. */
-	async listAccounts(): Promise<readonly AccountSummary[]> {
-		const document = await this.mutateDocument({ allowUnreadable: false }, async (current) => {
-			if (current === undefined) return UNCHANGED;
-			return UNCHANGED;
-		});
+	/** Account list without tokens. Legacy default keeps migration; observation can opt out. */
+	async listAccounts(
+		options: { readOnly?: boolean; includeCreatedAt?: boolean } = {},
+	): Promise<readonly AccountSummary[]> {
+		const document = options.readOnly
+			? (await this.loadDocument({ allowUnreadable: false, persistMigration: false }))?.document
+			: await this.mutateDocument({ allowUnreadable: false }, async () => UNCHANGED);
 		if (document === undefined) return [];
-		return document.accounts.map(summarizeAccount);
+		return document.accounts.map((account) => ({
+			...summarizeAccount(account),
+			...(options.includeCreatedAt ? { createdAt: account.createdAt } : {}),
+		}));
 	}
 
 	/** Opt-in observation for catalog guards; the default retains legacy migration. */
@@ -611,8 +617,13 @@ export class OAuthCredentialFileStore implements CredentialStore {
 	 * Read one account's credential without changing activeAccountId.
 	 * Used by the optional quota-aware pool proxy for sticky per-request routing.
 	 */
-	async readAccount(id: string): Promise<OAuthCredential | undefined> {
+	async readAccount(id: string, options: { readOnly?: boolean } = {}): Promise<OAuthCredential | undefined> {
 		if (!isValidAccountId(id)) return undefined;
+		if (options.readOnly === true) {
+			const loaded = await this.loadDocument({ allowUnreadable: false, persistMigration: false });
+			const account = loaded?.document.accounts.find((entry) => entry.id === id);
+			return account === undefined ? undefined : cloneCredential(account.credential);
+		}
 		const document = await this.mutateDocument({ allowUnreadable: false }, async (current) => {
 			if (current === undefined) return UNCHANGED;
 			return UNCHANGED;
