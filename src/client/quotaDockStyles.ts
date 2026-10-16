@@ -22,9 +22,19 @@ export const QUOTA_DOCK_CSS = `
 .dsh-coding-oauth-quota-panel button:focus-visible {
   outline: 2px solid var(--dsw-alias-state-business-primary); outline-offset: 1px;
 }
-.dsh-coding-oauth-quota-trigger[data-tone="warn"] { color: var(--dsw-alias-state-warn-primary); }
-.dsh-coding-oauth-quota-trigger[data-tone="error"] { color: var(--dsw-alias-state-error-primary); }
-.dsh-coding-oauth-quota-trigger[data-stale="true"] { opacity: 0.65; font-style: italic; }
+.dsh-coding-oauth-quota-accounts { display: grid; gap: 10px; }
+.dsh-coding-oauth-quota-account {
+  min-width: 0; border: 1px solid var(--dsw-alias-border-l2); border-radius: var(--dsw-radius-sm);
+  background: var(--dsw-alias-interactive-bg-hover); padding: 8px;
+}
+.dsh-coding-oauth-quota-account-toggle {
+  display: flex; align-items: center; gap: 5px; width: 100%; padding: 0; border: 0;
+  background: transparent; color: var(--dsw-alias-label-primary); font: inherit; font-weight: 500;
+  text-align: left; cursor: pointer;
+}
+.dsh-coding-oauth-quota-chevron { flex: none; transition: transform 0.15s ease; }
+.dsh-coding-oauth-quota-account-toggle[aria-expanded="true"] .dsh-coding-oauth-quota-chevron { transform: rotate(90deg); }
+.dsh-coding-oauth-quota-account > div:not([hidden]) { margin-top: 8px; }
 .dsh-coding-oauth-quota-panel {
   position: fixed; z-index: 1100; box-sizing: border-box; width: min(320px, 100vw - 16px);
   max-height: min(70vh, 560px); overflow: auto; padding: 12px; border: 0;
@@ -46,13 +56,14 @@ export const QUOTA_DOCK_CSS = `
 }
 .dsh-coding-oauth-quota-icon:hover { background: var(--dsw-alias-interactive-bg-hover); color: var(--dsw-alias-label-primary); }
 .dsh-coding-oauth-quota-body { display: flex; flex-direction: column; gap: 12px; margin-top: 10px; }
-.dsh-coding-oauth-quota-account { display: flex; flex-direction: column; gap: 6px; margin: 0; padding: 0; list-style: none; }
-.dsh-coding-oauth-quota-list { display: flex; flex-direction: column; gap: 12px; margin: 0; padding: 0; list-style: none; }
 .dsh-coding-oauth-quota-name { color: var(--dsw-alias-label-primary); font-weight: 500; overflow-wrap: anywhere; }
 .dsh-coding-oauth-quota-default { margin-left: 4px; color: var(--dsw-alias-label-tertiary); font-weight: 400; }
 .dsh-coding-oauth-quota-message { margin: 0; color: var(--dsw-alias-label-secondary); }
 .dsh-coding-oauth-quota-message[data-tone="error"] { color: var(--dsw-alias-state-error-primary); }
-.dsh-coding-oauth-quota-actions { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.dsh-coding-oauth-quota-actions { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.dsh-coding-oauth-quota-actions > button { flex: none; }
+.dsh-coding-oauth-quota-schedule { min-width: 0; font-size: 11px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.dsh-coding-oauth-quota-body[hidden] { display: none; }
 .dsh-coding-oauth-quota-button {
   min-height: 26px; padding: 2px 10px; border: 1px solid var(--dsw-alias-border-l3);
   border-radius: var(--dsw-radius-sm); background: transparent; color: var(--dsw-alias-label-primary);

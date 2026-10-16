@@ -1,15 +1,7 @@
-/** Quota windows (5 h / weekly) plus an explicit note when numbers are missing or old. Shared by settings and dock. */
+/** Compact quota windows and actionable account errors. Shared by settings and dock. */
 
 import type { GrokBuildSettingsKey } from "../locales.ts";
-import {
-	formatClock,
-	formatReset,
-	nextAutoRead,
-	type QuotaRow,
-	quotaNote,
-	updatedAgo,
-	windowOf,
-} from "../quotaModel.ts";
+import { formatReset, type QuotaRow, quotaNote, windowOf } from "../quotaModel.ts";
 import { hintStyle } from "../styles.ts";
 import { ProgressBar } from "./ProgressBar.tsx";
 
@@ -17,27 +9,23 @@ type Translate = (key: GrokBuildSettingsKey, params?: Record<string, unknown>) =
 
 export function QuotaRowDetails({ t, row, now }: { t: Translate; row: QuotaRow; now: number }) {
 	const note = quotaNote(t, row);
-	const next = nextAutoRead(row, now);
+	const failed = row.quota.state === "error" || (row.quota.state === "stale" && row.quota.errorCode !== undefined);
 	const showWindows = row.quota.state !== "disabled" && row.quota.state !== "unsupported";
 	return (
-		<div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+		<div style={{ display: "flex", flexDirection: "column", gap: 4, minWidth: 0 }}>
 			{showWindows
 				? (["five_hour", "seven_day"] as const).map((id) => {
 						const found = windowOf(row, id);
+						if (found === undefined) return null;
 						const label = id === "five_hour" ? t("routingFiveHour") : t("routingWeek");
-						if (found === undefined) {
-							return (
-								<div key={id} style={hintStyle}>
-									{label}: {t("quotaNoReading")}
-								</div>
-							);
-						}
-						const reset = formatReset(found.resetsAt);
+						const reset = formatReset(found.resetsAt, id, now);
 						return (
 							<ProgressBar
 								key={id}
 								value={found.usedPercent}
 								label={`${label} · ${t("quotaUsedPercent", { percent: Math.round(found.usedPercent) })}`}
+								compactLabel={label}
+								compactValue={t("quotaUsedPercent", { percent: Math.round(found.usedPercent) })}
 								{...(reset === undefined ? {} : { meta: t("quotaResetsAt", { time: reset }) })}
 							/>
 						);
@@ -45,24 +33,12 @@ export function QuotaRowDetails({ t, row, now }: { t: Translate; row: QuotaRow; 
 				: null}
 			{note === undefined ? null : (
 				<div
-					style={{
-						...hintStyle,
-						color:
-							row.quota.state === "error" || row.quota.state === "stale"
-								? "var(--dsw-alias-state-warn-primary)"
-								: hintStyle.color,
-					}}
-					role={row.quota.state === "error" ? "alert" : undefined}
+					style={{ ...hintStyle, ...(failed ? { color: "var(--dsw-alias-state-warn-primary)" } : {}) }}
+					role={failed ? "alert" : undefined}
 				>
 					{note}
 				</div>
 			)}
-			{showWindows && row.quota.fetchedAt !== undefined ? (
-				<div style={hintStyle}>{updatedAgo(t, row.quota.fetchedAt, now)}</div>
-			) : null}
-			{showWindows && next !== undefined ? (
-				<div style={hintStyle}>{t("quotaNextAutoRead", { time: formatClock(next) })}</div>
-			) : null}
 		</div>
 	);
 }

@@ -3,6 +3,7 @@ import { act, cleanup, fireEvent, render, screen } from "@testing-library/react"
 import { createElement } from "react";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { QUOTA_POLL_MS, QuotaDock } from "../src/client/components/QuotaDock.tsx";
+import { formatClock } from "../src/client/quotaModel.ts";
 import { en } from "../src/client/locales.ts";
 import { registerQuotaDock } from "../src/client/quotaDockSlot.ts";
 import { failure, NOW, row, snapshot, t } from "./client-quota-fixtures.ts";
@@ -84,7 +85,7 @@ it("renders nothing (no error) when the route does not exist (404 at mount)", as
 	expect(screen.queryByRole("alert")).toBeNull();
 });
 
-it("shows the button with the worst 5 h percentage and opens/closes with aria-expanded", async () => {
+it("shows a neutral button and opens/closes with aria-expanded", async () => {
 	await mountDock(
 		snapshot([
 			row({ isDefault: true }),
@@ -95,10 +96,11 @@ it("shows the button with the worst 5 h percentage and opens/closes with aria-ex
 			}),
 		]),
 	);
-	expect(trigger().getAttribute("aria-label")).toBe("Account quotas, highest 5 h usage 80 %");
+	expect(trigger().getAttribute("aria-label")).toBe(en.quotaButtonAria);
+	expect(trigger().hasAttribute("data-tone")).toBe(false);
 	expect(trigger().hasAttribute("data-stale")).toBe(false);
 	expect(trigger().hasAttribute("title")).toBe(false);
-	expect(trigger().textContent).toContain("80%");
+	expect(trigger().textContent).toBe("Quotas");
 	expect(trigger().getAttribute("aria-expanded")).toBe("false");
 	expect(screen.queryByRole("dialog")).toBeNull();
 	await openDock();
@@ -106,23 +108,23 @@ it("shows the button with the worst 5 h percentage and opens/closes with aria-ex
 	const dialog = screen.getByRole("dialog", { name: en.quotaPopupTitle });
 	expect(dialog.textContent).toContain(`Claude · compte 1${en.quotaDefaultMark}`);
 	expect(dialog.textContent).toContain("Codex · compte 1");
-	expect(dialog.textContent).toContain("5 h window · 42 % used");
-	expect(dialog.textContent).toContain("Updated 3 min ago");
+	expect(dialog.textContent).toContain("42 % used");
+	expect(dialog.textContent).toContain("Last read ");
 	expect(screen.getAllByRole("progressbar").length).toBeGreaterThanOrEqual(3);
-	expect(screen.getByRole("progressbar", { name: "5 h window · 42 % used" })).toBeTruthy();
+	expect(screen.getByRole("progressbar", { name: "5 h · 42 % used" })).toBeTruthy();
 	fireEvent.click(trigger());
 	expect(screen.queryByRole("dialog")).toBeNull();
 });
 
-it("marks the trigger as out of date when the highest 5 h value comes from a stale or failed read", async () => {
-	await mountDock(
-		snapshot([
-			row({ quota: quota({ state: "stale", errorCode: "TIMEOUT", windows: [{ id: "five_hour", usedPercent: 80 }] }) }),
-		]),
-	);
-	expect(trigger().getAttribute("aria-label")).toBe("Account quotas, highest 5 h usage 80 % (data may be out of date)");
-	expect(trigger().getAttribute("title")).toBe(trigger().getAttribute("aria-label"));
-	expect(trigger().getAttribute("data-stale")).toBe("true");
+it("keeps a stale trigger neutral and shows the last failure beside known numbers", async () => {
+	await mountDock(snapshot([row({ quota: quota({ state: "stale", errorCode: "TIMEOUT" }) })]));
+	expect(trigger().textContent).toBe("Quotas");
+	expect(trigger().hasAttribute("data-stale")).toBe(false);
+	expect(trigger().hasAttribute("data-tone")).toBe(false);
+	await openDock();
+	expect(screen.getByRole("alert").textContent).toBe(`Last read failed: ${en.quotaErrTimeout}`);
+	expect(screen.getByRole("progressbar")).toBeTruthy();
+	expect(document.body.textContent).not.toMatch(/out of date|older values/iu);
 });
 
 it("moves focus into the panel only after its first positioned render, on every opening", async () => {
@@ -260,7 +262,7 @@ it("shows fresh numbers after a refresh that really read the provider", async ()
 	await flush();
 	expect(screen.queryByRole("status")).toBeNull();
 	expect(screen.getByRole("dialog").textContent).toContain("91 % used");
-	expect(screen.getByRole("dialog").textContent).toContain(en.quotaUpdatedJustNow);
+	expect(screen.getByRole("dialog").textContent).toContain("Last read ");
 });
 
 it("reports a failed refresh without echoing server text", async () => {
@@ -306,7 +308,7 @@ it("a stale reading with a new error code after a refresh shows the cause, not '
 	await flush();
 	const text = screen.getByRole("dialog").textContent ?? "";
 	expect(text).not.toContain(en.quotaRefreshCurrent);
-	expect(text).toContain(`Showing older values; the last read failed: ${en.quotaErrTimeout}`);
+	expect(text).toContain(`Last read failed: ${en.quotaErrTimeout}`);
 	expect(screen.getByRole("status").textContent).toBe(en.quotaRefreshProviderError);
 });
 
@@ -393,7 +395,7 @@ it("skips poll ticks while the tab is hidden", async () => {
 
 it("keeps the conversation intact when GET fails: short message and manual retry", async () => {
 	await mountDock(failure(500, "SERVER_SECRET_TEXT"));
-	expect(trigger().getAttribute("aria-label")).toBe(en.quotaButtonAriaError);
+	expect(trigger().getAttribute("aria-label")).toBe(en.quotaButtonAria);
 	await openDock();
 	expect(screen.getByRole("alert").textContent).toContain(en.quotaLoadFailed);
 	expect(document.body.textContent).not.toContain("SERVER_SECRET_TEXT");
@@ -424,7 +426,7 @@ it("shows explicit text for accounts without numbers", async () => {
 	const text = screen.getByRole("dialog").textContent ?? "";
 	expect(text).toContain(en.quotaStateNotRead);
 	expect(text).toContain(en.quotaStateUnsupported);
-	expect(text).toContain(en.quotaNeverRead);
+	expect(text).not.toContain("Last read ");
 });
 
 it("announces the next automatic read only when the server gives a future one", async () => {
@@ -437,7 +439,7 @@ it("announces the next automatic read only when the server gives a future one", 
 	);
 	await openDock();
 	const text = screen.getByRole("dialog").textContent ?? "";
-	expect(text.match(/Next automatic read around/gu)).toHaveLength(1);
+	expect(text.match(/next around/gu)).toHaveLength(1);
 });
 
 it("registers on conversation.composer.dock and swallows slot failures", () => {
@@ -465,4 +467,108 @@ it("registers on conversation.composer.dock and swallows slot failures", () => {
 		register: () => () => undefined,
 	};
 	expect(() => registerQuotaDock(broken, t)()).not.toThrow();
+});
+
+it("shows three independent account boxes with name, chevron and keyboard toggles", async () => {
+	const accounts = [
+		row({ isDefault: true, quota: quota({ nextRefreshAt: NOW + 600_000 }) }),
+		row({ route: "r2", family: "codex", name: "Codex · account 1", isDefault: true }),
+		row({ route: "r3", name: "Claude · account 2" }),
+	];
+	await mountDock(snapshot(accounts));
+	await openDock();
+	const boxes = screen.getAllByRole("region");
+	expect(boxes).toHaveLength(3);
+	const first = screen.getByRole("button", { name: /Claude · compte 1/u });
+	const second = screen.getByRole("button", { name: /Codex · account 1/u });
+	const third = screen.getByRole("button", { name: "Claude · account 2" });
+	for (const button of [first, second, third]) expect(button.getAttribute("aria-expanded")).toBe("true");
+	expect(first.textContent).toContain(en.quotaDefaultMark);
+	expect(second.textContent).toContain(en.quotaDefaultMark);
+	expect(third.textContent).not.toContain(en.quotaDefaultMark);
+	fireEvent.click(screen.getByText("Claude · compte 1", { exact: true }));
+	expect(first.getAttribute("aria-expanded")).toBe("false");
+	expect(second.getAttribute("aria-expanded")).toBe("true");
+	expect(third.getAttribute("aria-expanded")).toBe("true");
+	expect(screen.getAllByRole("progressbar")).toHaveLength(4);
+	fireEvent.keyDown(first, { key: "Enter" });
+	expect(first.getAttribute("aria-expanded")).toBe("true");
+	fireEvent.keyDown(first, { key: " " });
+	expect(first.getAttribute("aria-expanded")).toBe("false");
+	const arrow = second.querySelector("svg");
+	if (arrow === null) throw new Error("missing account chevron");
+	fireEvent.click(arrow);
+	expect(second.getAttribute("aria-expanded")).toBe("false");
+	expect(third.getAttribute("aria-expanded")).toBe("true");
+	fireEvent.click(third);
+	expect(screen.queryByRole("progressbar")).toBeNull();
+	const schedule = screen.getByText(/Last read .* · next around /u);
+	expect(screen.getAllByText(/Last read /u)).toHaveLength(1);
+	expect(screen.getAllByRole("button", { name: en.quotaRefresh })).toHaveLength(1);
+	expect(schedule.closest("section")).toBeNull();
+	expect(refreshButton().closest("section")).toBeNull();
+	expect(schedule.closest("[hidden]")).toBeNull();
+	expect(refreshButton().closest("[hidden]")).toBeNull();
+	for (const box of boxes) {
+		expect(box.querySelector("button")?.getAttribute("aria-expanded")).toBe("false");
+		expect(box.textContent).not.toMatch(/Last read|next around|out of date/iu);
+		const controlled = box.querySelector("button")?.getAttribute("aria-controls");
+		expect(document.getElementById(controlled ?? "")?.hidden).toBe(true);
+	}
+	fireEvent.click(third);
+	fireEvent.click(trigger());
+	mocks.request.mockResolvedValue(snapshot([accounts[2]!, accounts[0]!, accounts[1]!]));
+	await openDock();
+	for (const name of [/Claude · compte 1/u, /Codex · account 1/u]) {
+		expect(screen.getByRole("button", { name }).getAttribute("aria-expanded")).toBe("false");
+	}
+	expect(screen.getByRole("button", { name: "Claude · account 2" }).getAttribute("aria-expanded")).toBe("true");
+	expect(screen.getAllByRole("progressbar")).toHaveLength(2);
+	expect(screen.getByRole("button", { name: /Claude · compte 1/u }).getAttribute("aria-expanded")).toBe("false");
+	expect(document.body.textContent).not.toMatch(/out of date/iu);
+});
+
+it("shows one combined schedule using latest fetch and nearest future refresh", async () => {
+	await mountDock(
+		snapshot([
+			row({ quota: quota({ fetchedAt: NOW - 60_000, nextRefreshAt: NOW + 600_000 }) }),
+			row({ route: "r2", quota: quota({ fetchedAt: NOW - 120_000, nextRefreshAt: NOW + 300_000 }) }),
+			row({ route: "r3", quota: quota({ fetchedAt: NOW - 180_000, nextRefreshAt: NOW - 1 }) }),
+		]),
+	);
+	await openDock();
+	expect(screen.getAllByText(/Last read /u)).toHaveLength(1);
+	const schedule = screen.getByText(/Last read /u).textContent;
+	expect(schedule).toBe(`Last read ${formatClock(NOW - 60_000)} · next around ${formatClock(NOW + 300_000)}`);
+	expect(document.body.textContent).not.toMatch(/out of date|Updated .*ago/iu);
+});
+
+it("treats stale without an error as normal and keeps each reset on its window row", async () => {
+	await mountDock(
+		snapshot([
+			row({
+				quota: quota({
+					state: "stale",
+					windows: [
+						{ id: "five_hour", usedPercent: 42, resetsAt: NOW + 3_600_000 },
+						{ id: "seven_day", usedPercent: 12 },
+					],
+				}),
+			}),
+		]),
+	);
+	await openDock();
+	expect(screen.queryByRole("alert")).toBeNull();
+	expect(document.body.textContent).not.toMatch(/out of date|older values|Updated/iu);
+	const bars = screen.getAllByRole("progressbar");
+	for (const bar of bars) {
+		const line = bar.parentElement;
+		expect(line?.getAttribute("data-quota-window")).toBe("true");
+		expect(line?.style.flexDirection).not.toBe("column");
+		expect(line?.style.whiteSpace).toBe("nowrap");
+		expect(line?.style.fontSize).toBe("11px");
+	}
+	expect(bars[0]?.parentElement?.textContent).toContain("reset ");
+	expect(bars[1]?.parentElement?.textContent).not.toContain("reset");
+	expect(screen.getAllByText(/^reset /u)).toHaveLength(1);
 });

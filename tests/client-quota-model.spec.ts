@@ -1,7 +1,15 @@
 import { expect, it } from "vitest";
 import { computePlacement } from "../src/client/quotaDockPlacement.ts";
-import { parseRoutingView, refreshOutcome, validateLabel } from "../src/client/quotaModel.ts";
-import { NOW, row, snapshot } from "./client-quota-fixtures.ts";
+import {
+	formatClock,
+	formatReset,
+	parseRoutingView,
+	quotaNote,
+	quotaSchedule,
+	refreshOutcome,
+	validateLabel,
+} from "../src/client/quotaModel.ts";
+import { NOW, row, snapshot, t } from "./client-quota-fixtures.ts";
 
 const view = (accounts = [row()]) => {
 	const parsed = parseRoutingView(snapshot(accounts));
@@ -55,6 +63,33 @@ it("refreshOutcome tells a provider failure from a current snapshot", () => {
 	const failing = same({ state: "stale", windows, errorCode: "TIMEOUT" });
 	expect(refreshOutcome(failing, failing)).toBe("current");
 	expect(refreshOutcome(undefined, view([row({ quota: { state: "not-read", windows: [] } })]))).toBe("nothing");
+});
+
+it("summarizes only available schedule timestamps, ignoring refreshes already due", () => {
+	const make = (quota: Record<string, unknown>) => view([row({ quota: { state: "fresh", windows: [], ...quota } })]);
+	expect(quotaSchedule(t, make({}), NOW)).toBe("");
+	expect(quotaSchedule(t, make({ fetchedAt: NOW }), NOW)).toBe(`Last read ${formatClock(NOW)}`);
+	expect(quotaSchedule(t, make({ nextRefreshAt: NOW + 60_000 }), NOW)).toBe(`next around ${formatClock(NOW + 60_000)}`);
+	expect(quotaSchedule(t, make({ nextRefreshAt: NOW }), NOW)).toBe("");
+});
+
+it("formats reset times on one line, adding a weekday only for weekly resets at least 24 h away", () => {
+	const soon = NOW + 3_600_000;
+	const later = NOW + 2 * 86_400_000;
+	expect(formatReset(undefined, "five_hour", NOW)).toBeUndefined();
+	expect(formatReset(soon, "five_hour", NOW)).toBe(formatClock(soon));
+	expect(formatReset(soon, "seven_day", NOW)).toBe(formatClock(soon));
+	expect(formatReset(later, "five_hour", NOW)).toBe(formatClock(later));
+	expect(formatReset(later, "seven_day", NOW)).toBe(
+		`${new Date(later).toLocaleDateString(undefined, { weekday: "short" })} ${formatClock(later)}`,
+	);
+});
+
+it("stale numbers have no warning unless the last read failed", () => {
+	const plain = view([row({ quota: { state: "stale", windows: [{ id: "five_hour", usedPercent: 20 }] } })])
+		.accounts[0]!;
+	expect(quotaNote(t, plain)).toBeUndefined();
+	expect(quotaNote(t, { ...plain, quota: { ...plain.quota, errorCode: "TIMEOUT" } })).toMatch(/^Last read failed:/u);
 });
 
 it("computePlacement keeps the panel inside the viewport with 8 px margins", () => {

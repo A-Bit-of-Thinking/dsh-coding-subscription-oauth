@@ -18,15 +18,12 @@ import type { GrokBuildSettingsKey } from "../locales.ts";
 import { computePlacement, type Placement, samePlacement } from "../quotaDockPlacement.ts";
 import { ensureQuotaDockStyles } from "../quotaDockStyles.ts";
 import {
-	hasOldFiveHour,
-	latestFetch,
+	quotaSchedule,
 	ROUTING_STATUS_PATH,
 	ROUTING_USAGE_PATH,
 	type RoutingView,
 	readRouting,
 	refreshOutcome,
-	updatedAgo,
-	worstFiveHour,
 } from "../quotaModel.ts";
 import { QuotaRowDetails } from "./QuotaRowDetails.tsx";
 
@@ -40,6 +37,7 @@ export function QuotaDock({ t }: { t: Translate }) {
 	const [unavailable, setUnavailable] = useState(false);
 	const [open, setOpen] = useState(false);
 	const [minimized, setMinimized] = useState(false);
+	const [collapsed, setCollapsed] = useState<Record<string, boolean>>({});
 	const [busy, setBusy] = useState(false);
 	const [notice, setNotice] = useState<"current" | "failed" | "provider" | undefined>();
 	const [placement, setPlacement] = useState<Placement | undefined>();
@@ -221,24 +219,8 @@ export function QuotaDock({ t }: { t: Translate }) {
 	if (unavailable || (view !== undefined && !view.enabled)) return null;
 	if (view === undefined && !loadFailed) return null;
 
-	const worst = view === undefined ? undefined : worstFiveHour(view);
-	const tone =
-		loadFailed && view === undefined
-			? "error"
-			: worst !== undefined && worst >= 90
-				? "error"
-				: worst !== undefined && worst >= 75
-					? "warn"
-					: undefined;
-	const old = view !== undefined && worst !== undefined && hasOldFiveHour(view);
-	const ariaLabel =
-		view === undefined
-			? t("quotaButtonAriaError")
-			: worst === undefined
-				? t("quotaButtonAria")
-				: t(old ? "quotaButtonAriaWorstOld" : "quotaButtonAriaWorst", { percent: worst });
 	const now = Date.now();
-	const newest = view === undefined ? undefined : latestFetch(view) || undefined;
+	const schedule = view === undefined ? "" : quotaSchedule(t, view, now);
 
 	return (
 		<span style={{ display: "inline-flex", flex: "none" }}>
@@ -246,22 +228,12 @@ export function QuotaDock({ t }: { t: Translate }) {
 				ref={trigger}
 				type="button"
 				className="dsh-coding-oauth-quota-trigger"
-				data-tone={tone}
-				data-stale={old ? "true" : undefined}
-				aria-label={ariaLabel}
-				title={old ? ariaLabel : undefined}
+				aria-label={t("quotaButtonAria")}
 				aria-haspopup="dialog"
 				aria-expanded={open}
 				onClick={() => setOpen((value) => !value)}
 			>
-				<svg viewBox="0 0 14 14" width="14" height="14" aria-hidden="true" fill="currentColor">
-					<rect x="1" y="7" width="3" height="6" rx="1" />
-					<rect x="5.5" y="3" width="3" height="10" rx="1" />
-					<rect x="10" y="5" width="3" height="8" rx="1" />
-				</svg>
 				<span>{t("quotaButton")}</span>
-				{view === undefined ? <span aria-hidden="true">!</span> : null}
-				{worst === undefined ? null : <span>{worst}%</span>}
 			</button>
 			{open && typeof document !== "undefined"
 				? createPortal(
@@ -311,19 +283,46 @@ export function QuotaDock({ t }: { t: Translate }) {
 										{view.accounts.length === 0 ? (
 											<p className="dsh-coding-oauth-quota-message">{t("quotaNoAccounts")}</p>
 										) : (
-											<ul className="dsh-coding-oauth-quota-list">
-												{view.accounts.map((row) => (
-													<li key={row.route} className="dsh-coding-oauth-quota-account">
-														<span className="dsh-coding-oauth-quota-name">
-															{row.name}
-															{row.isDefault ? (
-																<span className="dsh-coding-oauth-quota-default">{t("quotaDefaultMark")}</span>
-															) : null}
-														</span>
-														<QuotaRowDetails t={t} row={row} now={now} />
-													</li>
+											<div className="dsh-coding-oauth-quota-accounts">
+												{view.accounts.map((row, index) => (
+													<section key={row.route} className="dsh-coding-oauth-quota-account" aria-label={row.name}>
+														<button
+															type="button"
+															className="dsh-coding-oauth-quota-account-toggle"
+															aria-expanded={!collapsed[row.route]}
+															aria-controls={`dsh-quota-account-${index}`}
+															onClick={() =>
+																setCollapsed((previous) => ({ ...previous, [row.route]: !previous[row.route] }))
+															}
+															onKeyDown={(event) => {
+																if (event.key === "Enter" || event.key === " ") {
+																	event.preventDefault();
+																	if (!event.repeat) event.currentTarget.click();
+																}
+															}}
+														>
+															<svg
+																className="dsh-coding-oauth-quota-chevron"
+																viewBox="0 0 16 16"
+																width="12"
+																height="12"
+																aria-hidden="true"
+															>
+																<path d="m5 3 5 5-5 5" fill="none" stroke="currentColor" strokeWidth="1.5" />
+															</svg>
+															<span className="dsh-coding-oauth-quota-name">
+																{row.name}
+																{row.isDefault ? (
+																	<span className="dsh-coding-oauth-quota-default">{t("quotaDefaultMark")}</span>
+																) : null}
+															</span>
+														</button>
+														<div id={`dsh-quota-account-${index}`} hidden={!!collapsed[row.route]}>
+															<QuotaRowDetails t={t} row={row} now={now} />
+														</div>
+													</section>
 												))}
-											</ul>
+											</div>
 										)}
 										<div className="dsh-coding-oauth-quota-actions">
 											{view.usageEnabled ? (
@@ -337,7 +336,11 @@ export function QuotaDock({ t }: { t: Translate }) {
 													{busy ? t("quotaRefreshing") : t("quotaRefresh")}
 												</button>
 											) : null}
-											<span className="dsh-coding-oauth-quota-message">{updatedAgo(t, newest, now)}</span>
+											{schedule ? (
+												<span className="dsh-coding-oauth-quota-schedule" title={schedule}>
+													{schedule}
+												</span>
+											) : null}
 										</div>
 										{view.usageEnabled ? null : (
 											<p className="dsh-coding-oauth-quota-message">{t("quotaReadOnlyHint")}</p>

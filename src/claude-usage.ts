@@ -64,7 +64,8 @@ function copy(value: ClaudeUsage): ClaudeUsage {
 function isoReset(value: unknown): number | undefined {
 	if (
 		typeof value !== "string" ||
-		!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,3})?(?:Z|[+-]\d{2}:\d{2})$/u.test(value)
+		// The endpoint answers with microseconds (e.g. "…:00.123456+00:00"); Date.parse keeps the milliseconds.
+		!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,9})?(?:Z|[+-]\d{2}:\d{2})$/u.test(value)
 	)
 		return undefined;
 	const year = Number(value.slice(0, 4));

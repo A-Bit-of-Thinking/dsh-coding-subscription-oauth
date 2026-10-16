@@ -18,6 +18,7 @@ import {
 	QUOTA_MIN_READ_INTERVAL_MS,
 	QUOTA_READ_TIMEOUT_MS,
 	QUOTA_STALE_AFTER_MS,
+	QUOTA_TOOL_REFRESH_AFTER_MS,
 	type QuotaSource,
 	type QuotaState,
 	type QuotaWindow,
@@ -531,7 +532,9 @@ export class AccountRoutingRuntime {
 		for (const [id, entry] of selected) {
 			if (options.onlyIfNeeded === true) {
 				const state = this.quotaState(entry, true, now);
-				if (state !== "not-read" && state !== "stale" && state !== "error") continue;
+				const fetchedAt = entry.usage?.cached()?.fetchedAt;
+				const aged = fetchedAt !== undefined && now - fetchedAt >= QUOTA_TOOL_REFRESH_AFTER_MS;
+				if (state !== "not-read" && state !== "stale" && state !== "error" && !(state === "fresh" && aged)) continue;
 			}
 			const flight = this.startRead(id, entry);
 			if (flight !== undefined) flights.push(flight);

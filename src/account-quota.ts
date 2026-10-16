@@ -9,8 +9,13 @@ import { type CodexUsage, createCodexUsageReader } from "./codex-usage.ts";
 export const QUOTA_AUTO_REFRESH_MS = 15 * 60_000;
 /** No two network reads of the same route closer than this, whatever the trigger (timer, tool, HTTP). */
 export const QUOTA_MIN_READ_INTERVAL_MS = 60_000;
-/** A reading older than this is reported "stale" (and refreshed by the status tool). */
-export const QUOTA_STALE_AFTER_MS = 300_000;
+/**
+ * A reading older than this is reported "stale". It must exceed the automatic cadence, otherwise a healthy
+ * route would be "stale" most of the time between two ticks.
+ */
+export const QUOTA_STALE_AFTER_MS = QUOTA_AUTO_REFRESH_MS + 5 * 60_000;
+/** The status tool re-reads a route whose reading is older than this (still at most once per minimal interval). */
+export const QUOTA_TOOL_REFRESH_AFTER_MS = 300_000;
 /**
  * Hard deadline of one read, enforced by the runtime whatever the source does (the wait is raced against
  * it, and it also aborts the signal handed to the source); independent of any caller waiting for it.

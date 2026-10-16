@@ -99,6 +99,16 @@ describe("Claude usage normalization", () => {
 		});
 		expect(JSON.stringify(usage)).not.toContain(SECRET);
 	});
+	it("keeps the reset date when the provider sends microseconds, as the live endpoint does", () => {
+		const usage = normalizeClaudeUsage({
+			five_hour: { utilization: 10, resets_at: "2026-10-16T15:00:00.123456+00:00" },
+			seven_day: { utilization: 20, resets_at: "2026-10-21T08:30:00.000000+00:00" },
+		});
+		expect(usage.windows.map((window) => window.resetsAt)).toEqual([
+			Date.parse("2026-10-16T15:00:00.123Z"),
+			Date.parse("2026-10-21T08:30:00Z"),
+		]);
+	});
 	it.each([null, undefined, [], 1, "bad"])("rejects a non-record root %s", (value) => {
 		expect(() => normalizeClaudeUsage(value)).toThrow("malformed");
 	});

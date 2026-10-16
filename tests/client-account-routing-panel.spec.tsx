@@ -71,7 +71,7 @@ it("flags a stale reading with its failure cause", async () => {
 			}),
 		]),
 	);
-	expect(screen.getByText(`Showing older values; the last read failed: ${en.quotaErrTimeout}`)).toBeTruthy();
+	expect(screen.getByText(`Last read failed: ${en.quotaErrTimeout}`)).toBeTruthy();
 });
 
 it("renames an account inline with Enter and shows the new name", async () => {
@@ -162,8 +162,8 @@ it("with quota reading off (usageEnabled false): hint, no refresh button, accoun
 
 it("gives every progress bar an accessible name", async () => {
 	await openPanel(snapshot());
-	expect(screen.getByRole("progressbar", { name: "5 h window · 42 % used" })).toBeTruthy();
-	expect(screen.getByRole("progressbar", { name: "Weekly window · 12 % used" })).toBeTruthy();
+	expect(screen.getByRole("progressbar", { name: "5 h · 42 % used" })).toBeTruthy();
+	expect(screen.getByRole("progressbar", { name: "Weekly · 12 % used" })).toBeTruthy();
 });
 
 it("shows the next automatic read only when the server provides one", async () => {
@@ -179,7 +179,7 @@ it("shows the next automatic read only when the server provides one", async () =
 			}),
 		]),
 	);
-	expect(screen.getAllByText(/Next automatic read around/u)).toHaveLength(1);
+	expect(screen.queryByText(/next around|Updated|out of date/iu)).toBeNull();
 	cleanup();
 	vi.resetAllMocks();
 	await openPanel(snapshot());

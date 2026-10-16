@@ -257,15 +257,18 @@ describe("automatic quota reads", () => {
 		expect(quota.fetchedAt).toBeDefined();
 	});
 
-	it("is stale after 5 minutes without a successful read", async () => {
+	it("stays fresh between two automatic reads, and is stale only after 20 minutes", async () => {
 		const { runtime, register, states } = await setup();
 		await start(runtime, register);
 		await until(() => states().every((state) => state === "fresh"));
-		await vi.advanceTimersByTimeAsync(5 * MIN);
+		// Move the clock only (no timer fires, no read in flight can expire artificially).
+		vi.setSystemTime(Date.now() + 14 * MIN);
+		expect(states()).toEqual(["fresh", "fresh"]);
+		vi.setSystemTime(Date.now() + 7 * MIN); // 21 minutes after the reading
 		expect(states()).toEqual(["stale", "stale"]);
 	});
 
-	it("refreshUsage(onlyIfNeeded) reads only routes that are not-read, stale or in error", async () => {
+	it("refreshUsage(onlyIfNeeded) reads only routes that are not-read, in error, stale or older than 5 minutes", async () => {
 		const { runtime, current, fetchImpl, register, states } = await setup({ usage: false });
 		await start(runtime, register);
 		current.usageEnabled = true; // no reconcile: the timer is not started, routes stay not-read
@@ -278,7 +281,7 @@ describe("automatic quota reads", () => {
 		expect(fetchImpl).toHaveBeenCalledTimes(2); // fresh: skipped
 		await vi.advanceTimersByTimeAsync(4 * MIN);
 		await runtime.refreshUsage(undefined, undefined, { onlyIfNeeded: true });
-		expect(fetchImpl).toHaveBeenCalledTimes(4); // stale and older than 60 s
+		expect(fetchImpl).toHaveBeenCalledTimes(4); // still "fresh" for display, but older than the tool's 5 minutes
 	});
 
 	it("never touches the network from snapshot()", async () => {

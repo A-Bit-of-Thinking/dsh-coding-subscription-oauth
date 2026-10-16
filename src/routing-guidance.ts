@@ -30,10 +30,10 @@ export function routingPolicySnapshot(current: RoutingConfig) {
 
 function quotaContext(usageEnabled: boolean, accounts: Pick<AccountRoutingRuntime, "snapshot">): string {
 	const states =
-		"Quota states: fresh | stale (>5 min) | error | not-read (never read since startup) | unknown (read, no usable window) | unsupported | disabled; none of them means zero.";
+		"Quota states: fresh | stale (>20 min or last read failed) | error | not-read (never read since startup) | unknown (read, no usable window) | unsupported | disabled; none of them means zero.";
 	const status = JSON.stringify(modelFacingAccounts(accounts.snapshot()));
 	return usageEnabled
-		? `Subscription account status as last read by the server (quotas are read automatically at startup and every 15 minutes; no network happens while this prompt is built). ${states} Call coding_subscription_status before distributing work across accounts; it refreshes not-read, stale and error routes:\n${status}`
+		? `Subscription account status as last read by the server (quotas are read automatically at startup and every 15 minutes; no network happens while this prompt is built). ${states} Call coding_subscription_status before distributing work across accounts; it refreshes not-read, stale, error and older-than-5-minutes routes:\n${status}`
 		: `Subscription account status (quota reads are disabled by the operator: no quota is read or refreshed, and the states below say nothing about usage). ${states}\n${status}`;
 }
 

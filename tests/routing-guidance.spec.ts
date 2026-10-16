@@ -129,7 +129,7 @@ describe("complete operator guidance", () => {
 		}
 		config = { ...config, usageEnabled: true };
 		expect(render({})).toMatch(/it refreshes stale quotas itself/u);
-		expect(quota({})).toMatch(/it refreshes not-read, stale and error routes/u);
+		expect(quota({})).toMatch(/it refreshes not-read, stale, error and older-than-5-minutes routes/u);
 	});
 	it("does not print invalid operator JSON and rolls back section registration if context fails", () => {
 		let section!: Parameters<RoutingPromptRegistry["section"]>[0];

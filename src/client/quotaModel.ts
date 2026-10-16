@@ -87,15 +87,6 @@ export async function readRouting(path: string = ROUTING_STATUS_PATH, post = fal
 export const windowOf = (row: QuotaRow, id: QuotaWindowId): QuotaWindow | undefined =>
 	row.quota.windows.find((entry) => entry.id === id);
 
-/** Highest 5 h usage across accounts that have a reading; undefined when no account has one. */
-export function worstFiveHour(view: RoutingView): number | undefined {
-	const values = view.accounts.flatMap((row) => {
-		const found = windowOf(row, "five_hour");
-		return found === undefined ? [] : [Math.round(found.usedPercent)];
-	});
-	return values.length === 0 ? undefined : Math.max(...values);
-}
-
 export const latestFetch = (view: RoutingView | undefined): number =>
 	view === undefined ? 0 : Math.max(0, ...view.accounts.map((row) => row.quota.fetchedAt ?? 0));
 
@@ -134,16 +125,19 @@ export function refreshOutcome(before: RoutingView | undefined, next: RoutingVie
 	return hasNumbers ? "current" : "nothing";
 }
 
-/** True when a 5 h number feeding the compact indicator comes from a stale or failed reading. */
-export const hasOldFiveHour = (view: RoutingView): boolean =>
-	view.accounts.some(
-		(row) => windowOf(row, "five_hour") !== undefined && (row.quota.state === "stale" || row.quota.state === "error"),
-	);
-
-/** Planned automatic read of one account when it is still in the future; undefined when none was given. */
-export function nextAutoRead(row: QuotaRow, now: number): number | undefined {
-	const at = row.quota.nextRefreshAt;
-	return at !== undefined && at > now ? at : undefined;
+/** One schedule summary for all accounts, never repeated per row. */
+export function quotaSchedule(t: Translate, view: RoutingView, now: number): string {
+	const latest = latestFetch(view);
+	const future = view.accounts.flatMap((row) => {
+		const at = row.quota.nextRefreshAt;
+		return at !== undefined && at > now ? [at] : [];
+	});
+	return [
+		latest > 0 ? t("quotaLastRead", { time: formatClock(latest) }) : undefined,
+		future.length > 0 ? t("quotaNextRead", { time: formatClock(Math.min(...future)) }) : undefined,
+	]
+		.filter(Boolean)
+		.join(" · ");
 }
 
 export function formatClock(ms: number): string {
@@ -170,8 +164,10 @@ export function quotaNote(t: Translate, row: QuotaRow): string | undefined {
 	if (state === "error") return t("quotaStateError", { cause: errorCause(t, errorCode) });
 	if (state === "stale")
 		return errorCode === undefined
-			? t("quotaStateStale")
-			: t("quotaStateStaleError", { cause: errorCause(t, errorCode) });
+			? row.quota.windows.length === 0
+				? t("quotaStateNotRead")
+				: undefined
+			: t("quotaLastReadFailed", { cause: errorCause(t, errorCode) });
 	if (state === "not-read") return t("quotaStateNotRead");
 	if (state === "unknown")
 		return errorCode === undefined
@@ -182,22 +178,12 @@ export function quotaNote(t: Translate, row: QuotaRow): string | undefined {
 	return undefined;
 }
 
-export function formatReset(ms: number | undefined): string | undefined {
+export function formatReset(ms: number | undefined, id: QuotaWindowId, now: number): string | undefined {
 	if (ms === undefined) return undefined;
-	try {
-		return new Date(ms).toLocaleString(undefined, { dateStyle: "short", timeStyle: "short" });
-	} catch {
-		return new Date(ms).toISOString();
-	}
-}
-
-/** "Updated just now" / "Updated N min ago" (rounded down; hours past 90 min). */
-export function updatedAgo(t: Translate, fetchedAt: number | undefined, now: number): string {
-	if (fetchedAt === undefined) return t("quotaNeverRead");
-	const minutes = Math.max(0, Math.floor((now - fetchedAt) / 60_000));
-	if (minutes < 1) return t("quotaUpdatedJustNow");
-	if (minutes < 90) return t("quotaUpdatedAgo", { minutes });
-	return t("quotaUpdatedHours", { hours: Math.floor(minutes / 60) });
+	const time = formatClock(ms);
+	return id === "seven_day" && ms - now >= 86_400_000
+		? `${new Date(ms).toLocaleDateString(undefined, { weekday: "short" })} ${time}`
+		: time;
 }
 
 /**
