@@ -11,6 +11,7 @@ import {
 	type CapabilityToolRegistry,
 	capabilityToolEnabled,
 	type ReplaceableAdapterRegistration,
+	trackRegistrationRoutes,
 } from "../src/capability-runtime.ts";
 import { type CapabilitySettings, DEFAULT_CAPABILITY_SETTINGS } from "../src/capability-settings.ts";
 import { CODEX_IMAGE_EDIT_TOOL, CODEX_IMAGE_GENERATE_TOOL } from "../src/capability-tools.ts";
@@ -646,4 +647,40 @@ describe("bindCodexFastRoute", () => {
 
 afterEach(() => {
 	vi.useRealTimers();
+});
+
+describe("trackRegistrationRoutes (legacy route name refresh next to Codex Fast)", () => {
+	it("re-publishes exactly the held routes: keeps the Fast route while published, never resurrects it", async () => {
+		const state = new CapabilityRuntimeState();
+		const capabilities = new FakeCapabilities();
+		const registration = new FakeRegistration();
+		capabilities.eligible.add(ELIGIBLE_MODEL.id);
+		capabilities.refreshImpl = async () => [ELIGIBLE_MODEL];
+		const owner = trackRegistrationRoutes(registration, CODING_OAUTH_ROUTES);
+		const dispose = bindCodexFastRoute(state, capabilities, owner, { refreshIntervalMs: 0 });
+		owner.refresh();
+		expect(registration.last).toEqual([...CODING_OAUTH_ROUTES]);
+		expect(registration.publishedFast()).toBe(false);
+		state.set(settings({ codexFast: true }));
+		await flush();
+		expect(registration.last).toEqual(FAST_ROUTES);
+		owner.refresh(); // a rename while Fast is published: the Fast route must survive
+		expect(registration.last).toEqual(FAST_ROUTES);
+		state.set(settings({ codexFast: false }));
+		owner.refresh(); // and once withdrawn it must not come back through a name refresh
+		expect(registration.last).toEqual([...CODING_OAUTH_ROUTES]);
+		dispose();
+	});
+
+	it("records a route set only after the host accepted it", () => {
+		const registration = new FakeRegistration();
+		const owner = trackRegistrationRoutes(registration, ["a"]);
+		vi.spyOn(registration, "replace").mockImplementationOnce(() => {
+			throw new LlmError("refused", "DUPLICATE_ADAPTER");
+		});
+		expect(() => owner.replace(["a", "b"])).toThrow(LlmError);
+		expect(owner.routes()).toEqual(["a"]);
+		owner.replace(["a", "c"]);
+		expect(owner.routes()).toEqual(["a", "c"]);
+	});
 });

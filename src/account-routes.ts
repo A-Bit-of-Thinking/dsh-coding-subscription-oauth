@@ -27,10 +27,10 @@ export interface AccountRouteBinding extends AccountRouteDescriptor {
 	readonly route: string;
 	readonly slot: number;
 }
+/** `slot` stays an internal persistence detail; users and models see names instead. */
 export interface AccountRouteView {
 	readonly family: SubscriptionProviderSlug;
 	readonly route: string;
-	readonly slot: number;
 }
 interface Document {
 	version: 1;
@@ -62,7 +62,7 @@ function unavailable(): Error {
 
 /** Allowlisted projection: no provider account IDs, labels, epochs, filenames or tokens. */
 export function publicAccountRoute(binding: AccountRouteBinding): AccountRouteView {
-	return { family: binding.family, route: binding.route, slot: binding.slot };
+	return { family: binding.family, route: binding.route };
 }
 
 function parse(text: string): Document {

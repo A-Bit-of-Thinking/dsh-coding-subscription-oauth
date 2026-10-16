@@ -6,6 +6,9 @@ import { type OwnerRequestPolicy } from "./web-origin.js";
 export declare const ROUTING_STATUS_PATH: string;
 export declare const ROUTING_USAGE_PATH: string;
 export declare const ROUTING_SETTINGS_PATH: string;
+export declare const ROUTING_ACCOUNT_LABEL_PATH: string;
+/** Longest wait of the HTTP refresh before answering with the current snapshot (just above one read's own deadline). */
+export declare const ROUTING_USAGE_WAIT_MS = 25000;
 export interface RoutingRouteOptions {
     readonly current: () => RoutingConfig;
     readonly accounts: AccountRoutingRuntime;

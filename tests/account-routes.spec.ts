@@ -72,7 +72,7 @@ describe("opaque account route registry", () => {
 		const registry = new AccountRouteRegistry(filename);
 		const row = (await registry.synchronize([{ ...a, token: "SECRET_CANARY" } as AccountRouteDescriptor]))[0]!;
 		expect(JSON.stringify(publicAccountRoute(row))).not.toContain(a.accountId);
-		expect(publicAccountRoute(row)).toEqual({ family: "claude", route: row.route, slot: 1 });
+		expect(publicAccountRoute(row)).toEqual({ family: "claude", route: row.route });
 		expect(await readFile(filename, "utf8")).not.toContain("SECRET_CANARY");
 	});
 	it("captures descriptor inputs before asynchronous storage work", async () => {

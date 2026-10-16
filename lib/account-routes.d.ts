@@ -10,10 +10,10 @@ export interface AccountRouteBinding extends AccountRouteDescriptor {
     readonly route: string;
     readonly slot: number;
 }
+/** `slot` stays an internal persistence detail; users and models see names instead. */
 export interface AccountRouteView {
     readonly family: SubscriptionProviderSlug;
     readonly route: string;
-    readonly slot: number;
 }
 /** Allowlisted projection: no provider account IDs, labels, epochs, filenames or tokens. */
 export declare function publicAccountRoute(binding: AccountRouteBinding): AccountRouteView;

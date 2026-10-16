@@ -1,4 +1,16 @@
+/**
+ * Opt-in candidate for the historically observed private OAuth usage endpoint.
+ * Current availability/scopes are NOT guaranteed. General windows only; no
+ * invented Sonnet/Opus buckets. Auth and account selection remain parent-owned.
+ */
+import { LlmError } from "@deepseek-ai/dsh-llm";
 export declare const CLAUDE_USAGE_URL = "https://api.anthropic.com/api/oauth/usage";
+/** Internal marker: injected exceptions, even LlmError, must never escape. */
+declare class ClaudeUsageError extends LlmError {
+}
+/** A 429 answered locally while an earlier Retry-After is still running: no request left the process. */
+export declare class ClaudeUsageCooldownError extends ClaudeUsageError {
+}
 export interface ClaudeUsageWindow {
     readonly id: "five_hour" | "seven_day";
     readonly usedPercent: number;
@@ -35,4 +47,5 @@ export interface ClaudeUsageReader {
 /** Missing/null/invalid utilization is unavailable, never zero. Unknown buckets ignored. */
 export declare function normalizeClaudeUsage(payload: unknown, fetchedAt?: number): ClaudeUsage;
 export declare function createClaudeUsageReader(options: ClaudeUsageReaderOptions): ClaudeUsageReader;
+export {};
 //# sourceMappingURL=claude-usage.d.ts.map

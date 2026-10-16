@@ -20,7 +20,7 @@ export const RoutingConfigSchema = z.object({
 		.boolean()
 		.default(false)
 		.description(
-			"Allow explicit quota refreshes for routed Claude accounts (private endpoint, availability not guaranteed).",
+			"Read the five-hour and weekly quotas of routed Claude and Codex accounts automatically (at startup, then every 15 minutes; private endpoints, availability not guaranteed).",
 		),
 	guidanceEnabled: z
 		.boolean()

@@ -184,6 +184,11 @@ export function createGrokBuildAdapter(
 export interface CodingOAuthAdapterOptions {
 	retryPolicy?: RetryPolicyConfig;
 	codexFast?: { isEligible(modelId: string): boolean };
+	/**
+	 * Live name of the default account per family ("Claude · <name> (par défaut)"), read on every
+	 * providerInfo call. Undefined keeps the static "<Family> (OAuth)" name.
+	 */
+	defaultAccountName?: (family: string) => string | undefined;
 }
 
 function isRetryPolicyConfig(value: object): value is RetryPolicyConfig {
@@ -205,6 +210,7 @@ function splitCodingOAuthAdapterArgs(
 	return {
 		...(fourth.retryPolicy === undefined ? {} : { retryPolicy: fourth.retryPolicy }),
 		...(fourth.codexFast === undefined ? {} : { codexFast: fourth.codexFast }),
+		...(fourth.defaultAccountName === undefined ? {} : { defaultAccountName: fourth.defaultAccountName }),
 	};
 }
 
@@ -229,7 +235,7 @@ export function createCodingOAuthAdapter(
 	retryPolicyOrOptions?: RetryPolicyConfig | CodingOAuthAdapterOptions,
 	options?: CodingOAuthAdapterOptions,
 ): LlmAdapter {
-	const { retryPolicy, codexFast } = splitCodingOAuthAdapterArgs(retryPolicyOrOptions, options);
+	const { retryPolicy, codexFast, defaultAccountName } = splitCodingOAuthAdapterArgs(retryPolicyOrOptions, options);
 	const byNativeId = new Map(subscriptions.map((session) => [session.definition.nativeProviderId, session]));
 	const codexSession = byNativeId.get(CODEX_PI_PROVIDER);
 	const aliases = new Map<string, string>([
@@ -252,8 +258,12 @@ export function createCodingOAuthAdapter(
 		],
 	]);
 	for (const session of subscriptions) {
+		const staticName = `${session.definition.displayName.replace(/\s*\([^)]*\)$/u, "")} (OAuth)`;
 		policies.set(session.definition.route, {
-			displayName: `${session.definition.displayName.replace(/\s*\([^)]*\)$/u, "")} (OAuth)`,
+			// Getter: the default account's name follows renames and default-account switches.
+			get displayName() {
+				return defaultAccountName?.(session.definition.slug) ?? staticName;
+			},
 			isAuthenticated: async () => (await session.status()).authenticated,
 			onAuthFailure: () => session.invalidateAccessToken(),
 		});

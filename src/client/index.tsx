@@ -15,6 +15,7 @@ import type { GrokBuildSettingsInjected } from "./GrokBuildSettings.tsx";
 import { GrokBuildSettings } from "./GrokBuildSettings.tsx";
 import type { GrokBuildSettingsKey } from "./locales.ts";
 import { en, zh } from "./locales.ts";
+import { registerQuotaDock } from "./quotaDockSlot.ts";
 import type { CodingOAuthStatus, SettingsTabId } from "./types.ts";
 
 declare module "@deepseek-ai/dsh-client-ui-slots" {
@@ -194,6 +195,7 @@ export function apply(ctx: ClientContext): void {
 					},
 					register: (slots) => {
 						const disposeToolviews = registerCodexImageToolviews(slots, t);
+						const disposeQuotaDock = registerQuotaDock(slots, t);
 						const disposeSettings = slots.inject("settings.section", () => {
 							try {
 								const release = slots.register(
@@ -218,6 +220,7 @@ export function apply(ctx: ClientContext): void {
 						});
 						return () => {
 							disposeToolviews();
+							disposeQuotaDock();
 							disposeSettings();
 						};
 					},

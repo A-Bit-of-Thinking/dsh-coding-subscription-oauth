@@ -11,6 +11,8 @@ const MAX_COOLDOWN_MS = 300_000;
 
 /** Internal marker: injected exceptions, even LlmError, must never escape. */
 class ClaudeUsageError extends LlmError {}
+/** A 429 answered locally while an earlier Retry-After is still running: no request left the process. */
+export class ClaudeUsageCooldownError extends ClaudeUsageError {}
 
 export interface ClaudeUsageWindow {
 	readonly id: "five_hour" | "seven_day";
@@ -297,7 +299,12 @@ export function createClaudeUsageReader(options: ClaudeUsageReaderOptions): Clau
 			cooldownUntil = 0;
 		}
 		const started = epoch;
-		if (now() < cooldownUntil) throw statusError(429, cooldownUntil - now());
+		if (now() < cooldownUntil) {
+			throw new ClaudeUsageCooldownError("Claude usage request rejected (HTTP 429)", "RATE_LIMIT", {
+				status: 429,
+				providerRetryAfterMs: cooldownUntil - now(),
+			});
+		}
 		if (!force && cached !== undefined && now() - cached.fetchedAt >= 0 && now() - cached.fetchedAt < ttlMs) {
 			return copy(cached);
 		}

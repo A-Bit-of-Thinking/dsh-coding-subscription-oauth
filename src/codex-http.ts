@@ -40,7 +40,8 @@ export interface CodexAccess {
  * `invalidate` calls `invalidateAccessToken()` after an upstream 401.
  */
 export interface CodexAuthSession {
-	resolve(): Promise<{ accessToken: string; accountId?: string } | undefined>;
+	/** `signal` lets a caller stop waiting for a token refresh; implementations may ignore it. */
+	resolve(signal?: AbortSignal): Promise<{ accessToken: string; accountId?: string } | undefined>;
 	invalidate(): Promise<void>;
 }
 
@@ -210,11 +211,28 @@ function throwIfAborted(signal?: AbortSignal): void {
 	if (signal?.aborted === true) throw abortError(signal);
 }
 
-async function resolveAccess(auth: CodexAuthSession): Promise<CodexAccess> {
+/** Races a pending promise against `signal`: an uncooperative callee (token refresh) cannot hold the caller. */
+function cancellable<T>(pending: Promise<T>, signal?: AbortSignal): Promise<T> {
+	if (signal === undefined) return pending;
+	if (signal.aborted) {
+		void pending.catch(() => undefined);
+		return Promise.reject(abortError(signal));
+	}
+	return new Promise<T>((resolve, reject) => {
+		const onAbort = (): void => reject(abortError(signal));
+		signal.addEventListener("abort", onAbort, { once: true });
+		pending.then(resolve, reject).finally(() => signal.removeEventListener("abort", onAbort));
+	});
+}
+
+async function resolveAccess(auth: CodexAuthSession, signal?: AbortSignal): Promise<CodexAccess> {
 	let resolved: { accessToken: string; accountId?: string } | undefined;
+	throwIfAborted(signal);
 	try {
-		resolved = await auth.resolve();
+		resolved = await cancellable(auth.resolve(signal), signal);
 	} catch (error) {
+		// A cancelled or timed-out resolution is not a dead sign-in.
+		throwIfAborted(signal);
 		throw new LlmError(
 			`Codex could not refresh its sign-in (${safeMessage(error)}). Open Settings → Coding OAuth and sign in again.`,
 			"MISSING_CREDENTIAL",
@@ -404,7 +422,7 @@ export function createCodexHttpClient(options: CodexHttpClientOptions): CodexHtt
 	};
 
 	const requestJson = async (request: CodexHttpRequest): Promise<unknown> => {
-		let access = await resolveAccess(options.auth);
+		let access = await resolveAccess(options.auth, request.signal);
 		let current: CodexHttpRequest = request;
 		let serverAttempt = 0;
 		for (;;) {
@@ -427,7 +445,7 @@ export function createCodexHttpClient(options: CodexHttpClientOptions): CodexHtt
 				} catch {
 					// Still attempt one refresh so a failed backdate cannot skip re-login.
 				}
-				access = await resolveAccess(options.auth);
+				access = await resolveAccess(options.auth, current.signal);
 				current = { ...current, skipAuthRetry: true };
 				continue;
 			}

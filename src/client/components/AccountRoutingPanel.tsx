@@ -1,97 +1,38 @@
-/** Read-only account routes and quota windows. Options are edited in DSH settings. */
+/** Account routes and quotas with explicit states, plus inline rename. Options are edited in DSH settings. */
 
-import { useCallback, useRef, useState } from "react";
-import { isRecord, jsonRequest } from "../api.ts";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { ROUTING_STATUS_PATH, ROUTING_USAGE_PATH, type RoutingView, readRouting } from "../quotaModel.ts";
 import { bodyStyle, buttonStyle, cardStyle, hintStyle, monoStyle, titleStyle } from "../styles.ts";
 import type { GrokBuildSettingsInjected } from "../types.ts";
+import { AccountNameEditor } from "./AccountNameEditor.tsx";
+import { QuotaRowDetails } from "./QuotaRowDetails.tsx";
 
-const STATUS_PATH = "/plugins/dsh-grok-build/routing";
-const USAGE_PATH = "/plugins/dsh-grok-build/routing/usage";
-
-interface QuotaWindow {
-	id: "five_hour" | "seven_day";
-	usedPercent: number;
-	resetsAt?: number;
-}
-interface RouteRow {
-	family: string;
-	route: string;
-	slot: number;
-	quota: { state: string; windows: QuotaWindow[]; fetchedAt?: number; errorCode?: string };
-}
-interface RoutingView {
-	enabled: boolean;
-	usageEnabled: boolean;
-	state: string;
-	accounts: RouteRow[];
-}
-
-const num = (value: unknown): value is number => typeof value === "number" && Number.isFinite(value);
-
-/** Minimal allowlist: anything unexpected is dropped, never displayed. */
-function parseView(value: unknown): RoutingView | undefined {
-	if (!isRecord(value) || !isRecord(value["flags"]) || !Array.isArray(value["accounts"])) return undefined;
-	const accounts: RouteRow[] = [];
-	for (const row of value["accounts"]) {
-		if (!isRecord(row) || typeof row["route"] !== "string" || typeof row["family"] !== "string" || !num(row["slot"]))
-			continue;
-		const quota = isRecord(row["quota"]) ? row["quota"] : {};
-		const windows: QuotaWindow[] = [];
-		for (const window of Array.isArray(quota["windows"]) ? quota["windows"] : []) {
-			if (!isRecord(window) || !num(window["usedPercent"])) continue;
-			if (window["id"] !== "five_hour" && window["id"] !== "seven_day") continue;
-			windows.push({
-				id: window["id"],
-				usedPercent: window["usedPercent"],
-				...(num(window["resetsAt"]) ? { resetsAt: window["resetsAt"] } : {}),
-			});
-		}
-		accounts.push({
-			family: row["family"],
-			route: row["route"],
-			slot: row["slot"],
-			quota: {
-				state: typeof quota["state"] === "string" ? quota["state"] : "unknown",
-				windows,
-				...(num(quota["fetchedAt"]) ? { fetchedAt: quota["fetchedAt"] } : {}),
-				...(typeof quota["errorCode"] === "string" ? { errorCode: quota["errorCode"].slice(0, 32) } : {}),
-			},
-		});
-	}
-	return {
-		enabled: value["flags"]["enabled"] === true,
-		usageEnabled: value["flags"]["usageEnabled"] === true,
-		state: typeof value["state"] === "string" ? value["state"] : "unknown",
-		accounts,
-	};
-}
-
-const when = (ms: number | undefined): string => (ms === undefined ? "—" : new Date(ms).toLocaleString());
+const RENAMED_MESSAGE_MS = 5000;
 
 export function AccountRoutingPanel({ t }: { t: GrokBuildSettingsInjected["t"] }) {
 	const [view, setView] = useState<RoutingView | undefined>();
-	const [error, setError] = useState<string | undefined>();
+	const [error, setError] = useState<"load" | "refresh" | undefined>();
 	const [busy, setBusy] = useState(false);
+	const [renamed, setRenamed] = useState(false);
 	const busyRef = useRef(false);
+
+	// The success message is transient: it disappears after a delay or when the next edit starts.
+	useEffect(() => {
+		if (!renamed) return;
+		const timer = setTimeout(() => setRenamed(false), RENAMED_MESSAGE_MS);
+		return () => clearTimeout(timer);
+	}, [renamed]);
 
 	const run = useCallback(async (refresh: boolean) => {
 		if (busyRef.current) return;
 		busyRef.current = true;
 		setBusy(true);
 		try {
-			const parsed = parseView(
-				await jsonRequest<unknown>(
-					refresh ? USAGE_PATH : STATUS_PATH,
-					refresh ? "POST" : "GET",
-					refresh ? {} : undefined,
-				),
-			);
-			if (parsed === undefined) throw new Error("Unexpected response");
-			setView(parsed);
+			setView(await readRouting(refresh ? ROUTING_USAGE_PATH : ROUTING_STATUS_PATH, refresh));
 			setError(undefined);
 		} catch {
 			// Keep the last good view; server text is never echoed, the localized label is enough.
-			setError("failed");
+			setError(refresh ? "refresh" : "load");
 		} finally {
 			busyRef.current = false;
 			setBusy(false);
@@ -105,19 +46,13 @@ export function AccountRoutingPanel({ t }: { t: GrokBuildSettingsInjected["t"] }
 		setOpen(next);
 		if (next && view === undefined) void run(false);
 	};
-
-	const windowText = (row: RouteRow, id: QuotaWindow["id"]): string => {
-		const found = row.quota.windows.find((entry) => entry.id === id);
-		return found === undefined
-			? t("routingUnknown")
-			: `${Math.round(found.usedPercent)} % ${t("routingUsed")} · ${t("routingResets")} ${when(found.resetsAt)}`;
-	};
+	const now = Date.now();
 
 	const body = (
 		<>
 			{error === undefined ? null : (
 				<p style={{ ...bodyStyle, color: "var(--dsw-alias-state-error-primary)" }} role="alert">
-					{t("routingQuotaError")}{" "}
+					{error === "refresh" ? t("quotaRefreshFailed") : t("quotaLoadFailed")}{" "}
 					<button type="button" style={buttonStyle} disabled={busy} onClick={() => void run(false)}>
 						{t("routingRetry")}
 					</button>
@@ -136,41 +71,40 @@ export function AccountRoutingPanel({ t }: { t: GrokBuildSettingsInjected["t"] }
 					<p style={hintStyle}>
 						{t("routingState")}: <span style={monoStyle}>{view.state}</span>
 					</p>
-					<ul style={{ listStyle: "none", margin: 0, padding: 0, display: "grid", gap: 8 }}>
+					{view.accounts.length === 0 ? <p style={hintStyle}>{t("quotaNoAccounts")}</p> : null}
+					<ul style={{ listStyle: "none", margin: 0, padding: 0, display: "grid", gap: 12 }}>
 						{view.accounts.map((row) => (
-							<li key={row.route} style={{ ...bodyStyle, overflowWrap: "anywhere" }}>
+							<li key={row.route} style={{ ...bodyStyle, overflowWrap: "anywhere", display: "grid", gap: 6 }}>
 								<strong>
-									{row.family} · {t("routingAccount")} {row.slot}
+									{row.name}
+									{row.isDefault ? ` ${t("quotaDefaultMark")}` : ""}
 								</strong>
-								<br />
 								<span style={monoStyle}>{row.route}</span>
-								<br />
-								{row.quota.state === "disabled" ? (
-									<span style={hintStyle}>{t("routingQuotaOff")}</span>
-								) : row.quota.state === "unsupported" ? (
-									<span style={hintStyle}>{t("routingQuotaUnsupported")}</span>
-								) : (
-									<span>
-										{t("routingFiveHour")}: {windowText(row, "five_hour")}
-										<br />
-										{t("routingWeek")}: {windowText(row, "seven_day")}
-										<br />
-										<span style={hintStyle}>
-											{t("routingFetched")}: {when(row.quota.fetchedAt)}
-											{row.quota.state === "stale" || row.quota.state === "error"
-												? ` · ${row.quota.state}${row.quota.errorCode === undefined ? "" : ` (${row.quota.errorCode})`}`
-												: ""}
-										</span>
-									</span>
-								)}
+								<QuotaRowDetails t={t} row={row} now={now} />
+								<AccountNameEditor
+									t={t}
+									row={row}
+									onEditStart={() => setRenamed(false)}
+									onRenamed={(next) => {
+										setView(next);
+										setRenamed(true);
+									}}
+								/>
 							</li>
 						))}
 					</ul>
+					{renamed ? (
+						<p style={hintStyle} role="status">
+							{t("quotaRenamed")}
+						</p>
+					) : null}
 					{view.usageEnabled ? (
 						<button type="button" style={buttonStyle} disabled={busy} aria-busy={busy} onClick={() => void run(true)}>
 							{busy ? t("routingRefreshing") : t("routingRefresh")}
 						</button>
-					) : null}
+					) : (
+						<p style={hintStyle}>{t("quotaReadOnlyHint")}</p>
+					)}
 					<p style={hintStyle}>{t("routingNote")}</p>
 				</>
 			)}

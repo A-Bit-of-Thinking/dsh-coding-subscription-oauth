@@ -1,5 +1,6 @@
 /** Owner-only, secret-free status and explicit quota refresh for fixed account routes. */
 import type { IncomingMessage, ServerResponse } from "node:http";
+import { AccountRenameError } from "./account-names.ts";
 import type { AccountRoutingRuntime } from "./account-runtime.ts";
 import type { CapabilityRouteContext } from "./capability-routes.ts";
 import { readJsonRequest, requestErrorStatus } from "./http-json.ts";
@@ -13,6 +14,10 @@ import { registerWebRouteSetupAtomically } from "./web-routes.ts";
 export const ROUTING_STATUS_PATH = `${CODING_OAUTH_API_BASE}/routing`;
 export const ROUTING_USAGE_PATH = `${CODING_OAUTH_API_BASE}/routing/usage`;
 export const ROUTING_SETTINGS_PATH = `${CODING_OAUTH_API_BASE}/routing/settings`;
+export const ROUTING_ACCOUNT_LABEL_PATH = `${CODING_OAUTH_API_BASE}/routing/accounts/label`;
+
+/** Longest wait of the HTTP refresh before answering with the current snapshot (just above one read's own deadline). */
+export const ROUTING_USAGE_WAIT_MS = 25_000;
 
 export interface RoutingRouteOptions {
 	readonly current: () => RoutingConfig;
@@ -61,10 +66,41 @@ async function handle(req: IncomingMessage, res: ServerResponse, options: Routin
 			if (requested !== undefined && (typeof requested !== "string" || requested.length > 200)) {
 				return json(res, 400, { error: "invalid route" });
 			}
-			await options.accounts.refreshUsage(requested);
+			// Bounded wait: each read has its own 20 s deadline; a throttled route simply keeps its snapshot.
+			await options.accounts.refreshUsage(requested, undefined, { timeoutMs: ROUTING_USAGE_WAIT_MS });
 		}
 		json(res, 200, publicRoutingStatus(options));
 	} catch (error) {
+		const status = requestErrorStatus(error, 0);
+		json(res, status === 0 ? 400 : status, { error: "request failed" });
+	}
+}
+
+/**
+ * Owner-only rename: `{ route, label }` where `label` is a string, or null/empty to restore the
+ * numbered fallback name. The key must be present. Errors never echo the label.
+ */
+async function handleAccountLabel(req: IncomingMessage, res: ServerResponse, options: RoutingRouteOptions) {
+	const policy = options.ownerRequestPolicy ?? LOOPBACK_OWNER_REQUEST_POLICY;
+	if (req.method !== "POST") return json(res, 405, { error: "method not allowed" });
+	if (!policy.authorize(req).authorized) return json(res, 403, { error: "forbidden" });
+	try {
+		const body: unknown = await readJsonRequest(req);
+		if (typeof body !== "object" || body === null || Array.isArray(body) || !("label" in body)) {
+			return json(res, 400, { error: "invalid request" });
+		}
+		const { route, label } = body as { route?: unknown; label?: unknown };
+		if (typeof route !== "string" || route.length === 0 || route.length > 200) {
+			return json(res, 400, { error: "invalid route" });
+		}
+		await options.accounts.renameAccount(route, label);
+		json(res, 200, publicRoutingStatus(options));
+	} catch (error) {
+		if (error instanceof AccountRenameError) {
+			return error.code === "unknown-route"
+				? json(res, 404, { error: "unknown route" })
+				: json(res, 400, { error: "invalid label" });
+		}
 		const status = requestErrorStatus(error, 0);
 		json(res, status === 0 ? 400 : status, { error: "request failed" });
 	}
@@ -105,6 +141,11 @@ export function registerRoutingRoutes(ctx: CapabilityRouteContext, options: Rout
 					kind: "exact",
 					path: ROUTING_SETTINGS_PATH,
 					handler: (req, res) => handleSettings(req, res, options),
+				});
+				webServer.register({
+					kind: "exact",
+					path: ROUTING_ACCOUNT_LABEL_PATH,
+					handler: (req, res) => handleAccountLabel(req, res, options),
 				});
 				webServer.register({
 					kind: "exact",

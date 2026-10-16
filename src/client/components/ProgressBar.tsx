@@ -28,6 +28,7 @@ export function ProgressBar({ value, label, meta }: ProgressBarProps) {
 			)}
 			<div
 				role="progressbar"
+				aria-label={label}
 				aria-valuenow={clamped}
 				aria-valuemin={0}
 				aria-valuemax={100}

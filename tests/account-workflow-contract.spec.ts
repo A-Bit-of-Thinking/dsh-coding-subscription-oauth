@@ -84,3 +84,26 @@ it("requires explicit confirmation when the provider does not disclose identity"
 	await store.persistLoginCredential(unknown, { ...intent, confirmOverwrite: true });
 	expect(await store.getActiveAccountId()).toBe("a");
 });
+it("renaming the account while a reauthorization is pending does not make it a conflict", async () => {
+	const store = await fixture();
+	const intent = await store.prepareLoginPersist({ mode: "reauthorize", targetAccountId: "a" });
+	await store.setAccountLabel("a", "Renommé");
+	await store.persistLoginCredential(credential("a", "renewed-a"), intent);
+	expect(await store.read("test-provider")).toEqual(credential("a", "renewed-a"));
+	expect((await store.listAccounts())[0]?.label).toBe("Renommé");
+	// Clearing the label meanwhile is just as harmless.
+	const second = await store.prepareLoginPersist({ mode: "reauthorize", targetAccountId: "a" });
+	await store.setAccountLabel("a", null);
+	await store.persistLoginCredential(credential("a", "renewed-again"), second);
+	expect(await store.read("test-provider")).toEqual(credential("a", "renewed-again"));
+});
+it("a pending reauthorization is still refused when the credentials changed, whatever the label", async () => {
+	const store = await fixture();
+	const intent = await store.prepareLoginPersist({ mode: "reauthorize", targetAccountId: "a" });
+	await store.setAccountLabel("a", "Renommé");
+	await store.modify("test-provider", async () => credential("a", "refreshed-meanwhile"));
+	await expect(store.persistLoginCredential(credential("a", "stale-a"), intent)).rejects.toMatchObject({
+		code: "account-conflict",
+	});
+	expect(await store.read("test-provider")).toEqual(credential("a", "refreshed-meanwhile"));
+});

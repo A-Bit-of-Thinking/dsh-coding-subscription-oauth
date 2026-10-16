@@ -35,6 +35,7 @@ import {
 	CapabilityRuntimeState,
 	type CapabilitySearchRegistry,
 	type CapabilityToolRegistry,
+	trackRegistrationRoutes,
 } from "./capability-runtime.ts";
 import {
 	type CapabilitySettingsPatch,
@@ -500,9 +501,9 @@ async function applyOwned(ctx: Context, config: Config): Promise<void> {
 	);
 	let invalidateOptionalAuthState = (): void => undefined;
 	let accountRouting: AccountRoutingRuntime | undefined;
-	const notifyCatalogChange = (): void => {
+	const legacyRoutes: LegacyRoutesHandle = { refresh: () => undefined };
+	const emitCatalogChange = (): void => {
 		if (!active) return;
-		void accountRouting?.reconcile();
 		try {
 			ctx.emit("llm/adapters-updated");
 		} catch (error) {
@@ -511,6 +512,11 @@ async function applyOwned(ctx: Context, config: Config): Promise<void> {
 			logger.warn("an llm/adapters-updated listener failed");
 			logger.warn(error);
 		}
+	};
+	const notifyCatalogChange = (): void => {
+		if (!active) return;
+		void accountRouting?.reconcile();
+		emitCatalogChange();
 	};
 	const grok = new GrokBuildSession(new GrokBuildCredentialStore(), notifyCatalogChange);
 	const subscriptions = OAUTH_PROVIDER_DEFINITIONS.map(
@@ -526,6 +532,11 @@ async function applyOwned(ctx: Context, config: Config): Promise<void> {
 		current: () => readRoutingConfig(config.routing),
 		resolveAttachments: () => ctx.get("attachments"),
 		onError: () => logger.warn("Account route registration failed closed"),
+		// The host snapshots provider names at registration and never re-reads providerInfo: renames and
+		// default-account switches reach the model picker only through `replace` on the registrations
+		// (fixed routes inside the runtime, the legacy/Fast registration here). `replace` publishes
+		// llm/adapters-updated itself, so no extra emit is needed.
+		onLegacyDisplayChange: () => legacyRoutes.refresh(),
 	});
 	const routedAccounts = accountRouting;
 	let routingConfigSignature = JSON.stringify(readRoutingConfig(config.routing));
@@ -863,12 +874,19 @@ async function applyOwned(ctx: Context, config: Config): Promise<void> {
 			opencodeGo,
 			logger,
 			accountRouting: routedAccounts,
+			legacyRoutes,
 		}),
 	);
 }
 
+/** Re-publishes the legacy/Fast routes of the LLM child (set while it is attached, a no-op otherwise). */
+interface LegacyRoutesHandle {
+	refresh: () => void;
+}
+
 interface OwnedLlmDependencies {
 	readonly accountRouting: AccountRoutingRuntime;
+	readonly legacyRoutes: LegacyRoutesHandle;
 	readonly grok: GrokBuildSession;
 	readonly subscriptions: readonly OAuthProviderSession[];
 	readonly runtime: CapabilityRuntimeState;
@@ -902,17 +920,34 @@ function applyOwnedLlm(ctx: Context, config: Config, owner: OwnedLlmDependencies
 				codexFast: {
 					isEligible: (modelId) => owner.runtime.current().codexFast && owner.codexModels.isPriorityEligible(modelId),
 				},
+				defaultAccountName: (family) => owner.accountRouting.defaultRouteName(family),
 			}),
 		),
 	);
 	ctx.effect(() => adapterRegistration, "dsh-coding-subscription-oauth: OAuth LLM adapters");
+	// One owner for the legacy registration's route set: the Codex Fast binding changes it, and a name
+	// refresh must re-publish exactly the routes currently held (never drop `codex-oauth-fast`).
+	const legacyRegistration = trackRegistrationRoutes(adapterRegistration, CODING_OAUTH_ROUTES);
+	owner.legacyRoutes.refresh = () => {
+		try {
+			legacyRegistration.refresh();
+		} catch {
+			owner.logger.warn("Legacy route name refresh failed");
+		}
+	};
+	ctx.effect(
+		() => () => {
+			owner.legacyRoutes.refresh = () => undefined;
+		},
+		"coding-oauth: legacy route name refresh",
+	);
 	ctx.effect(
 		() => owner.accountRouting.attach((routes, adapter) => ctx.llm.registerAdapter(routes, guard(adapter))),
 		"coding-oauth: fixed account LLM adapters",
 	);
 	ctx.effect(
 		() =>
-			bindCodexFastRoute(owner.runtime, owner.codexModels, adapterRegistration, {
+			bindCodexFastRoute(owner.runtime, owner.codexModels, legacyRegistration, {
 				onError: () => owner.logger.warn("Codex Fast eligibility refresh failed closed"),
 			}),
 		"dsh-coding-subscription-oauth: Codex Fast route",

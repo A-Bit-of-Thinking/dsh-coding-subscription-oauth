@@ -122,6 +122,11 @@ export declare class OAuthCredentialFileStore implements CredentialStore {
      */
     modifyAccount(id: string, fn: (current: Credential | undefined) => Promise<Credential | undefined>): Promise<Credential | undefined>;
     setActiveAccount(id: string): Promise<void>;
+    /**
+     * Set or clear (null/empty) the user label of one account. Credentials and the active
+     * account are untouched; the write is as atomic as every other document mutation.
+     */
+    setAccountLabel(id: string, label: string | null | undefined): Promise<void>;
     upsertAccount(input: {
         id: string;
         label?: string;

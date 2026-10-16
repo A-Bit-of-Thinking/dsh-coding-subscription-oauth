@@ -21,6 +21,11 @@ export interface CodingOAuthAdapterOptions {
     codexFast?: {
         isEligible(modelId: string): boolean;
     };
+    /**
+     * Live name of the default account per family ("Claude · <name> (par défaut)"), read on every
+     * providerInfo call. Undefined keeps the static "<Family> (OAuth)" name.
+     */
+    defaultAccountName?: (family: string) => string | undefined;
 }
 /** Create the four-route OAuth adapter while preserving each pi-ai native id. */
 export declare function createCodingOAuthAdapter(grok: GrokBuildSession, subscriptions: readonly OAuthProviderSession[], resolveAttachments: () => AttachmentStore | undefined, retryPolicy?: RetryPolicyConfig, options?: CodingOAuthAdapterOptions): LlmAdapter;

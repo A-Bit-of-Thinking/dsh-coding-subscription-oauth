@@ -6,6 +6,7 @@ import * as llm from "@deepseek-ai/dsh-llm";
 import { PiAiAdapter } from "@deepseek-ai/dsh-llm-pi-ai";
 import { type CredentialStore, createModels, type OAuthCredential } from "@earendil-works/pi-ai";
 import { AccountCredentialStore } from "./account-credentials.ts";
+import { accountFamilyName } from "./account-names.ts";
 import type { AccountRouteBinding } from "./account-routes.ts";
 import { codingOAuthProfile } from "./adapter.ts";
 import { AliasLlmAdapter } from "./alias-adapter.ts";
@@ -30,6 +31,11 @@ export class AccountBoundAdapter extends llm.LlmAdapter {
 	private readonly scope: CredentialStore;
 	private readonly tokens: ReturnType<typeof createModels>;
 	private readonly catalog: AliasLlmAdapter;
+	/**
+	 * Read lazily by providerInfo (never captured at construction): a rename or a change of
+	 * default account only mutates this field, so no entry is recreated and no request is cut.
+	 */
+	private displayName: string;
 	readonly binding: AccountRouteBinding;
 
 	constructor(
@@ -40,6 +46,7 @@ export class AccountBoundAdapter extends llm.LlmAdapter {
 		super();
 		if (binding.family !== session.definition.slug) unavailable();
 		this.binding = { ...binding };
+		this.displayName = accountFamilyName(binding.family);
 		const base = new AccountCredentialStore(session.store, binding.accountId);
 		const native = session.definition.nativeProviderId;
 		this.scope = {
@@ -68,6 +75,21 @@ export class AccountBoundAdapter extends llm.LlmAdapter {
 	/** Called synchronously on withdrawal; already sent streams may finish, never refresh a replacement. */
 	dispose(): void {
 		this.alive = false;
+	}
+
+	/** Name shown by the model picker; takes effect for the next providerInfo call. */
+	setDisplayName(name: string): void {
+		this.displayName = name;
+	}
+
+	/** The default account is listed through the legacy route; this fixed route stays usable but is hidden. */
+	private async isDefaultAccount(): Promise<boolean> {
+		try {
+			return (await this.session.store.getActiveAccountId({ readOnly: true })) === this.binding.accountId;
+		} catch {
+			// Unreadable store: showing a possible duplicate is safer than hiding a usable route.
+			return false;
+		}
 	}
 
 	private async assertCurrent(): Promise<void> {
@@ -101,6 +123,16 @@ export class AccountBoundAdapter extends llm.LlmAdapter {
 			unavailable();
 		}
 	}
+	/**
+	 * Marks the stored access token expired when it is still the rejected one, so the next resolveAccess
+	 * refreshes instead of replaying it. A token already replaced by another refresh is left alone.
+	 */
+	async invalidateAccess(rejected: string | undefined): Promise<void> {
+		if (!this.alive || rejected === undefined) return;
+		await this.scope.modify(this.session.definition.nativeProviderId, async (current) =>
+			current?.type === "oauth" && current.access === rejected ? { ...current, expires: Date.now() - 1000 } : undefined,
+		);
+	}
 	async isCurrent(generation: string): Promise<boolean> {
 		try {
 			const credential = await this.scope.read(this.session.definition.nativeProviderId);
@@ -113,19 +145,10 @@ export class AccountBoundAdapter extends llm.LlmAdapter {
 	private makeAdapter(): AliasLlmAdapter {
 		const native = this.session.definition.nativeProviderId;
 		let sentAccess: string | undefined;
+		const currentName = (): string => this.displayName;
 		const inner = new PiAiAdapter({
 			profiles: () =>
-				new Map([
-					[
-						native,
-						codingOAuthProfile(
-							native,
-							`${this.session.definition.displayName} — Account ${String(this.binding.slot)}`,
-							this.session.provider(),
-							ACCOUNT_RETRY,
-						),
-					],
-				]),
+				new Map([[native, codingOAuthProfile(native, this.displayName, this.session.provider(), ACCOUNT_RETRY)]]),
 			auth: { credentials: this.scope, authContext: NO_EXTERNAL_AUTH },
 			resolveApiKey: async () => {
 				const access = await this.resolveAccess();
@@ -141,6 +164,10 @@ export class AccountBoundAdapter extends llm.LlmAdapter {
 				[
 					this.binding.route,
 					{
+						// Getter: providerInfo reads the current name on every call (rename-safe).
+						get displayName() {
+							return currentName();
+						},
 						isAuthenticated: async () => {
 							try {
 								return (await this.scope.read(native))?.type === "oauth";
@@ -148,14 +175,7 @@ export class AccountBoundAdapter extends llm.LlmAdapter {
 								return false;
 							}
 						},
-						onAuthFailure: async () => {
-							if (!this.alive || sentAccess === undefined) return;
-							await this.scope.modify(native, async (current) =>
-								current?.type === "oauth" && current.access === sentAccess
-									? { ...current, expires: Date.now() - 1000 }
-									: undefined,
-							);
-						},
+						onAuthFailure: () => this.invalidateAccess(sentAccess),
 					},
 				],
 			]),
@@ -168,7 +188,9 @@ export class AccountBoundAdapter extends llm.LlmAdapter {
 	providerRetryPolicy(provider: string) {
 		return this.catalog.providerRetryPolicy(provider);
 	}
-	listModels(provider: string) {
+	/** Hidden (empty) while this account is the default one; resolveModel and stream are unaffected. */
+	async listModels(provider: string) {
+		if (await this.isDefaultAccount()) return [];
 		return this.catalog.listModels(provider);
 	}
 	resolveModel(provider: string, model: string) {

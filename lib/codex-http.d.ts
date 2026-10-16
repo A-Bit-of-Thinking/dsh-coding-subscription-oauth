@@ -25,7 +25,8 @@ export interface CodexAccess {
  * `invalidate` calls `invalidateAccessToken()` after an upstream 401.
  */
 export interface CodexAuthSession {
-    resolve(): Promise<{
+    /** `signal` lets a caller stop waiting for a token refresh; implementations may ignore it. */
+    resolve(signal?: AbortSignal): Promise<{
         accessToken: string;
         accountId?: string;
     } | undefined>;

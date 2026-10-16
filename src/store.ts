@@ -10,6 +10,7 @@ import { dirname, join, resolve } from "node:path";
 import { withFileLock, writeFileAtomic } from "@deepseek-ai/dsh-atomic-write";
 import { resolveDshHome } from "@deepseek-ai/dsh-home-paths";
 import type { Credential, CredentialInfo, CredentialStore, OAuthCredential } from "@earendil-works/pi-ai";
+import { normalizeAccountLabel } from "./account-names.ts";
 import { GROK_BUILD_AUTH_FILENAME, XAI_PI_PROVIDER } from "./ids.ts";
 import { OAuthSourceError, readHardenedOAuthSourceFile } from "./oauth-sources.ts";
 
@@ -44,8 +45,14 @@ export class AccountOperationError extends Error {
 		this.name = "AccountOperationError";
 	}
 }
+/**
+ * Fingerprint of what a re-authorization replaces: identity and credentials. The label is deliberately
+ * excluded, so renaming an account while its authorization is pending cannot make it fail as a conflict.
+ */
 function accountVersion(account: AccountRecord): string {
-	return createHash("sha256").update(JSON.stringify(account)).digest("base64url");
+	return createHash("sha256")
+		.update(JSON.stringify([account.id, account.createdAt, account.credential]))
+		.digest("base64url");
 }
 
 /** Non-empty account id; max 128; restricted charset for path-safe operator labels. */
@@ -688,6 +695,41 @@ export class OAuthCredentialFileStore implements CredentialStore {
 				version: AUTH_FORMAT_VERSION,
 				activeAccountId: id,
 				accounts: current.accounts.map(cloneAccount),
+			};
+		});
+	}
+
+	/**
+	 * Set or clear (null/empty) the user label of one account. Credentials and the active
+	 * account are untouched; the write is as atomic as every other document mutation.
+	 */
+	async setAccountLabel(id: string, label: string | null | undefined): Promise<void> {
+		if (!isValidAccountId(id)) {
+			throw new TypeError(`${this.label}: account id is invalid`);
+		}
+		const normalized = normalizeAccountLabel(label);
+		await this.mutateDocument({ allowUnreadable: false }, async (current) => {
+			if (current === undefined) {
+				throw new Error(`${this.label}: no credential accounts are stored`);
+			}
+			const existing = current.accounts.find((account) => account.id === id);
+			if (existing === undefined) {
+				throw new Error(`${this.label}: account "${id}" is not stored`);
+			}
+			if ((existing.label ?? null) === normalized) return UNCHANGED;
+			return {
+				version: AUTH_FORMAT_VERSION,
+				activeAccountId: current.activeAccountId,
+				accounts: current.accounts.map((account) =>
+					account.id === id
+						? {
+								id: account.id,
+								...(normalized === null ? {} : { label: normalized }),
+								credential: cloneCredential(account.credential),
+								createdAt: account.createdAt,
+							}
+						: cloneAccount(account),
+				),
 			};
 		});
 	}

@@ -188,6 +188,27 @@ export interface ReplaceableAdapterRegistration {
 	replace(routes: string[]): void;
 }
 
+/**
+ * Remembers the route set a registration currently holds. Several owners act on one registration (the
+ * Codex Fast binding adds/removes a route, a name refresh re-publishes the set): `refresh` replaces the
+ * routes with exactly what is held, so it can neither drop nor resurrect the optional Fast route.
+ * `replace` records the new set only after the host accepted it.
+ */
+export function trackRegistrationRoutes(registration: ReplaceableAdapterRegistration, initial: readonly string[]) {
+	let held = [...initial];
+	return {
+		replace(routes: string[]): void {
+			registration.replace(routes);
+			held = [...routes];
+		},
+		/** Re-publish the held routes so the host re-reads provider names; keeps the same adapter. */
+		refresh(): void {
+			registration.replace([...held]);
+		},
+		routes: (): readonly string[] => [...held],
+	};
+}
+
 export interface CapabilityTimer {
 	setInterval(callback: () => void, ms: number): unknown;
 	clearInterval(handle: unknown): void;

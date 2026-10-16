@@ -154,16 +154,60 @@ describe("account-bound transport", () => {
 		});
 		await expect(collect(adapters[0]!, model)).rejects.toThrow(/^Subscription account request could not complete$/u);
 	});
-	it("advertises a neutral slot name and conservative no-rate-limit-retry policy", async () => {
+	it("advertises a neutral name and conservative no-rate-limit-retry policy", async () => {
 		const { adapters } = await fixture();
-		const adapter = adapters[0]!;
+		const adapter = adapters[1]!;
 		const info = adapter.providerInfo(adapter.binding.route);
-		expect(info.name).toContain("Account 1");
+		expect(info.name).toBe("Claude");
+		expect(info.name).not.toMatch(/slot|account \d/iu);
 		expect(JSON.stringify(info)).not.toContain("fixture-access");
 		expect(adapter.providerRetryPolicy(adapter.binding.route)).toMatchObject({
 			maxRetries: 1,
 			retryableCodes: ["AUTH"],
 		});
 		expect((await adapter.listModels(adapter.binding.route)).length).toBeGreaterThan(0);
+	});
+	// Adapter level only: the host snapshots names at registration, so making a rename visible in the model
+	// picker is the job of `replace` (asserted in account-runtime.spec.ts with a host-like registrar).
+	it("answers providerInfo with the name set at call time, without a new adapter", async () => {
+		const { adapters } = await fixture();
+		const adapter = adapters[1]!;
+		adapter.setDisplayName("Claude · Perso");
+		expect(adapter.providerInfo(adapter.binding.route).name).toBe("Claude · Perso");
+		adapter.setDisplayName("Claude · compte 2");
+		expect(adapter.providerInfo(adapter.binding.route).name).toBe("Claude · compte 2");
+	});
+	it("invalidateAccess expires only the still-rejected access token, and nothing once withdrawn", async () => {
+		const { store, adapters } = await fixture();
+		const adapter = adapters[0]!;
+		await adapter.invalidateAccess("fixture-access-other");
+		expect((await store.readAccount("a"))!.expires).toBeGreaterThan(Date.now());
+		await adapter.invalidateAccess(undefined);
+		expect((await store.readAccount("a"))!.expires).toBeGreaterThan(Date.now());
+		await adapter.invalidateAccess("fixture-access-a");
+		expect((await store.readAccount("a"))!.expires).toBeLessThan(Date.now());
+		expect((await store.readAccount("b"))!.expires).toBeGreaterThan(Date.now());
+		const other = adapters[1]!;
+		other.dispose();
+		await other.invalidateAccess("fixture-access-b");
+		expect((await store.readAccount("b"))!.expires).toBeGreaterThan(Date.now());
+	});
+	it("hides the default account from listings but keeps resolveModel and stream working; the hiding follows setActive", async () => {
+		const { store, adapters, model } = await fixture();
+		const [a, b] = adapters as [AccountBoundAdapter, AccountBoundAdapter];
+		vi.spyOn(PiAiAdapter.prototype, "stream").mockImplementation(async function* (this: PiAiAdapter) {
+			await apiKey(this);
+			yield { type: "finish", reason: { kind: "stop" } };
+		});
+		// "a" is the default account (first stored).
+		expect(await a.listModels(a.binding.route)).toEqual([]);
+		expect((await b.listModels(b.binding.route)).length).toBeGreaterThan(0);
+		await expect(a.resolveModel(a.binding.route, model)).resolves.toMatchObject({ provider: a.binding.route });
+		expect(await collect(a, model)).toEqual([{ type: "finish", reason: { kind: "stop" } }]);
+		await store.setActiveAccount("b");
+		expect((await a.listModels(a.binding.route)).length).toBeGreaterThan(0);
+		expect(await b.listModels(b.binding.route)).toEqual([]);
+		await expect(b.resolveModel(b.binding.route, model)).resolves.toMatchObject({ provider: b.binding.route });
+		expect(await collect(b, model)).toEqual([{ type: "finish", reason: { kind: "stop" } }]);
 	});
 });
