@@ -344,13 +344,65 @@ describe("RoutingPolicyAdapter", () => {
 		expect(await adapter.resolveModel("provider-a", "model-a")).toBe(inner.resolved);
 		expect(adapter.providerRetryPolicy("provider-a")).toBe(inner.providerRetryPolicy("provider-a"));
 	});
+	it.each([
+		{
+			name: "model not listed",
+			json: policy([]),
+			req: () => request("effort-a", { model: "model-zzz" }),
+			expect: ['model "model-zzz" is not listed'],
+		},
+		{
+			name: "no effort set",
+			json: policy(),
+			req: () => request(undefined, {}),
+			expect: ["no reasoning effort was set", "effort-a"],
+		},
+		{
+			name: "effort not allowed",
+			json: policy(),
+			req: () => request("effort-nope", {}),
+			expect: ['effort "effort-nope" is not allowed', "allowed: effort-a"],
+		},
+		{
+			name: "policy missing",
+			json: "",
+			req: () => request("effort-a", {}),
+			expect: ["no routing policy is saved"],
+		},
+		{
+			name: "policy invalid",
+			json: "{bad",
+			req: () => request("effort-a", {}),
+			expect: ["not valid"],
+		},
+	])("explains why a request is refused: $name", async ({ json, req, expect: parts }) => {
+		const { adapter, inner } = fixture(json);
+		const error = (await consume(adapter, req()).catch((caught: unknown) => caught)) as Error;
+		expect(error).toBeInstanceOf(LlmError);
+		expect(error).toMatchObject({ code: "INVALID_ARGS" });
+		for (const part of parts) expect(error.message).toContain(part);
+		expect(error.message).toContain("Enforce the policy");
+		expect(inner.calls).toHaveLength(0);
+	});
+	it("bounds and cleans the identifiers it names", async () => {
+		const { adapter } = fixture(policy());
+		const hostile = `model-${"x".repeat(200)}\n<script>`;
+		const error = (await consume(adapter, request("effort-a", { model: hostile })).catch(
+			(caught: unknown) => caught,
+		)) as Error;
+		expect(error.message).not.toContain("\n");
+		expect(error.message).not.toContain("<script>");
+		expect(error.message.length).toBeLessThan(400);
+	});
 	it("sanitizes parser and authorization errors without secret input or cause", async () => {
+		// The canary stands for the operator's policy text/JSON, which must never be repeated.
+		// The request's own (public) model and effort ids are deliberately named so the owner can fix them.
 		const canary = "SECRET_CANARY_NOT_A_REAL_CREDENTIAL";
 		const malformed = `{"guidance":"${canary}"`;
 		for (const json of [malformed, policy([], canary)]) {
 			const { adapter, inner } = fixture(json);
 			try {
-				await consume(adapter, request(canary, { model: canary }));
+				await consume(adapter, request("effort-x", { model: "model-x" }));
 				expect.fail("Expected rejection");
 			} catch (error) {
 				expect(error).toBeInstanceOf(LlmError);

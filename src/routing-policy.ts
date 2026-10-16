@@ -34,6 +34,19 @@ function reject(): never {
 	// No input, identifiers, parser diagnostics or chained causes escape this boundary.
 	throw new LlmError("Routing policy is invalid or does not authorize this request.", "INVALID_ARGS");
 }
+/**
+ * A refusal that names what the request asked for (its own model/effort ids, bounded and
+ * reduced to a safe alphabet) so the owner can fix it. It never repeats policy text or input JSON.
+ */
+function refuse(reason: string): never {
+	throw new LlmError(
+		`Routing policy refused this request: ${reason}. Change the model or effort, or turn off "Enforce the policy" in Settings > Coding OAuth > Routing.`,
+		"INVALID_ARGS",
+	);
+}
+function shown(value: string): string {
+	return value.slice(0, 60).replace(/[^A-Za-z0-9._:/@+ -]/gu, "?");
+}
 function record(value: unknown): value is Record<string, unknown> {
 	return value !== null && typeof value === "object" && !Array.isArray(value);
 }
@@ -125,7 +138,10 @@ export function assertRoutingAllowed(
 	now = Date.now(),
 ): void {
 	const entry = policy.models.find((candidate) => candidate.family === family && candidate.model === model);
-	if (!entry || !effortId(effort)) reject();
+	if (!entry) refuse(`model "${shown(model)}" is not listed in your routing policy`);
+	const allowed = entry.allowedEfforts.map((value) => shown(value)).join(", ") || "none";
+	if (effort === undefined) refuse(`no reasoning effort was set for "${shown(model)}"; choose one of: ${allowed}`);
+	if (!effortId(effort)) reject();
 	if (entry.allowedEfforts.includes(effort)) return;
 	const until = entry.exceptionApprovedUntil;
 	if (
@@ -137,7 +153,10 @@ export function assertRoutingAllowed(
 		until <= now + DAY_MS
 	)
 		return;
-	reject();
+	if (entry.exceptionEfforts?.includes(effort)) {
+		refuse(`effort "${shown(effort)}" for "${shown(model)}" is an exception that is not approved or has expired`);
+	}
+	refuse(`effort "${shown(effort)}" is not allowed for "${shown(model)}"; allowed: ${allowed}`);
 }
 
 /** Own routes only; every streamed purpose, including compaction, receives the same check. */
@@ -183,8 +202,13 @@ export class RoutingPolicyAdapter extends LlmAdapter {
 			const family = this.options.familyForRoute(options.provider);
 			if (family !== undefined) {
 				const now = Date.now();
-				const policy = parseRoutingPolicy(current.policyJson, now);
-				if (!policy) reject();
+				let policy: RoutingPolicy | undefined;
+				try {
+					policy = parseRoutingPolicy(current.policyJson, now);
+				} catch {
+					refuse("the routing policy saved in settings is not valid");
+				}
+				if (!policy) refuse('"Enforce the policy" is on but no routing policy is saved');
 				assertRoutingAllowed(policy, family, options.model, options.reasoningEffort, now);
 			}
 		}

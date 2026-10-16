@@ -151,6 +151,9 @@ function SignInSteps({
 	);
 }
 
+/** Mirrors the credential store's cap (OAUTH_MAX_ACCOUNTS); the server remains the authority. */
+const MAX_STORED_ACCOUNTS = 8;
+
 export function ProviderCard({
 	capabilitiesPanel,
 	onLoadCapabilities,
@@ -297,6 +300,24 @@ export function ProviderCard({
 			<div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
 				{providerStatus.status === "signed-in" ? (
 					<>
+						{providerStatus.accounts.length < MAX_STORED_ACCOUNTS ? (
+							ordered.map((method) => (
+								<button
+									key={method}
+									type="button"
+									style={buttonStyle}
+									disabled={busy}
+									onClick={() => {
+										// No target account: the server stores it as an additional account.
+										void onSignIn(method);
+									}}
+								>
+									{ordered.length > 1 ? `${t("accountAdd")} · ${methodLabel(method, t)}` : t("accountAdd")}
+								</button>
+							))
+						) : (
+							<span style={hintStyle}>{t("accountAddLimit")}</span>
+						)}
 						{logoutConfirm ? (
 							<fieldset style={{ ...nestedStyle, margin: 0, minWidth: 0 }}>
 								<legend style={visuallyHiddenStyle}>{t("logoutConfirmTitle")}</legend>
@@ -449,6 +470,9 @@ export function ProviderCard({
 					</>
 				) : null}
 			</div>
+			{providerStatus.status === "signed-in" && providerStatus.accounts.length < MAX_STORED_ACCOUNTS ? (
+				<p style={hintStyle}>{t("accountAddHint")}</p>
+			) : null}
 			{observed.status === "error" ? (
 				<div style={{ ...bodyStyle, color: "var(--dsw-alias-state-error-primary)" }} role="alert">
 					<p>

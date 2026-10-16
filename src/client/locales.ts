@@ -409,6 +409,10 @@ export const en = {
 	tabGatewayActive: "Running",
 	accountsListHint: "Saved subscription accounts on this machine (tokens are never shown):",
 	accountActive: "Default",
+	accountAdd: "Add another account",
+	accountAddLimit: "Account limit reached (8). Remove one to add another.",
+	accountAddHint:
+		"To add a different account, sign out of that provider in your browser first (or use a private window). Otherwise the browser reuses the account that is already signed in.",
 	accountSetDefault: "Set default",
 	accountRemove: "Remove",
 	accountRemoveConfirmTitle: "Confirm account removal",
@@ -818,6 +822,10 @@ export const zh: { [Key in GrokBuildSettingsKey]: string } = {
 	tabGatewayActive: "运行中",
 	accountsListHint: "本机保存的订阅账号（从不显示令牌）：",
 	accountActive: "默认",
+	accountAdd: "Add another account",
+	accountAddLimit: "Account limit reached (8). Remove one to add another.",
+	accountAddHint:
+		"To add a different account, sign out of that provider in your browser first (or use a private window). Otherwise the browser reuses the account that is already signed in.",
 	accountSetDefault: "设为默认",
 	accountRemove: "移除",
 	accountRemoveConfirmTitle: "确认移除账号",
