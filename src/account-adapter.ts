@@ -148,7 +148,15 @@ export class AccountBoundAdapter extends llm.LlmAdapter {
 		const currentName = (): string => this.displayName;
 		const inner = new PiAiAdapter({
 			profiles: () =>
-				new Map([[native, codingOAuthProfile(native, this.displayName, this.session.provider(), ACCOUNT_RETRY)]]),
+				// Full catalog on purpose (no selectedIds): the plugin's model selection only trims the legacy
+				// route; a fixed account route must offer every model so the host's per-pair sub-agent
+				// checklist can list them all.
+				new Map([
+					[
+						native,
+						codingOAuthProfile(native, this.displayName, this.session.definition.requestProvider(), ACCOUNT_RETRY),
+					],
+				]),
 			auth: { credentials: this.scope, authContext: NO_EXTERNAL_AUTH },
 			resolveApiKey: async () => {
 				const access = await this.resolveAccess();

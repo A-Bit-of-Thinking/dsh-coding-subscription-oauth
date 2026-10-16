@@ -44,7 +44,7 @@ async function fixture() {
 		rows.map((row) => ({ family: "claude", accountId: row.id, createdAt: row.createdAt! })),
 	);
 	const adapters = bindings.map((binding) => new AccountBoundAdapter(session, binding, () => undefined));
-	return { store, adapters, model: session.availableModels()[0]!.id };
+	return { store, session, adapters, model: session.availableModels()[0]!.id };
 }
 async function collect(adapter: AccountBoundAdapter, model: string) {
 	const chunks = [];
@@ -166,6 +166,16 @@ describe("account-bound transport", () => {
 			retryableCodes: ["AUTH"],
 		});
 		expect((await adapter.listModels(adapter.binding.route)).length).toBeGreaterThan(0);
+	});
+	it("lists the full catalog on a fixed account route, whatever the plugin's model selection", async () => {
+		const { session, adapters } = await fixture();
+		const adapter = adapters[1]!;
+		const all = session.availableModels().map((model) => model.id);
+		expect(all.length).toBeGreaterThan(1);
+		await session.setSelectedModels([all[0]!]);
+		expect(session.visibleModels()).toHaveLength(1);
+		const listed = (await adapter.listModels(adapter.binding.route)).map((model) => model.id);
+		expect([...listed].sort()).toEqual([...all].sort());
 	});
 	// Adapter level only: the host snapshots names at registration, so making a rename visible in the model
 	// picker is the job of `replace` (asserted in account-runtime.spec.ts with a host-like registrar).
