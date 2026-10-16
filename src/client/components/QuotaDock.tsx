@@ -4,18 +4,11 @@
  * panel is open and the tab visible, one GET every 60 s. Provider reads happen only on the Refresh button.
  */
 
-import {
-	type KeyboardEvent as ReactKeyboardEvent,
-	useCallback,
-	useEffect,
-	useLayoutEffect,
-	useRef,
-	useState,
-} from "react";
+import { type KeyboardEvent as ReactKeyboardEvent, useCallback, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { isPluginRequestError } from "../api.ts";
 import type { GrokBuildSettingsKey } from "../locales.ts";
-import { computePlacement, type Placement, samePlacement } from "../quotaDockPlacement.ts";
+import type { ResizeEdge } from "../quotaDockPlacement.ts";
 import { ensureQuotaDockStyles } from "../quotaDockStyles.ts";
 import {
 	quotaSchedule,
@@ -25,6 +18,7 @@ import {
 	readRouting,
 	refreshOutcome,
 } from "../quotaModel.ts";
+import { useQuotaPanelGeometry } from "../useQuotaPanelGeometry.ts";
 import { QuotaRowDetails } from "./QuotaRowDetails.tsx";
 
 type Translate = (key: GrokBuildSettingsKey, params?: Record<string, unknown>) => string;
@@ -40,9 +34,9 @@ export function QuotaDock({ t }: { t: Translate }) {
 	const [collapsed, setCollapsed] = useState<Record<string, boolean>>({});
 	const [busy, setBusy] = useState(false);
 	const [notice, setNotice] = useState<"current" | "failed" | "provider" | undefined>();
-	const [placement, setPlacement] = useState<Placement | undefined>();
 	const trigger = useRef<HTMLButtonElement>(null);
 	const panel = useRef<HTMLDivElement>(null);
+	const { placement, active, gesture, start, reset, keyDown } = useQuotaPanelGeometry(open, trigger);
 	const mounted = useRef(true);
 	const reading = useRef(false);
 	const refreshing = useRef(false);
@@ -96,7 +90,7 @@ export function QuotaDock({ t }: { t: Translate }) {
 	// the tab is hidden and catch up when it becomes visible.
 	const pollable = view?.enabled === true && view.usageEnabled;
 	useEffect(() => {
-		if (!open || !pollable) return;
+		if (!open || minimized || !pollable) return;
 		const tick = (): void => {
 			if (document.visibilityState !== "hidden") void load();
 		};
@@ -109,7 +103,7 @@ export function QuotaDock({ t }: { t: Translate }) {
 			clearInterval(timer);
 			document.removeEventListener("visibilitychange", onVisible);
 		};
-	}, [open, pollable, load]);
+	}, [open, minimized, pollable, load]);
 
 	const close = useCallback((restoreFocus: boolean): void => {
 		setOpen(false);
@@ -123,6 +117,7 @@ export function QuotaDock({ t }: { t: Translate }) {
 			if (event.key === "Escape") close(true);
 		};
 		const onPointer = (event: Event): void => {
+			if (gesture.current !== undefined) return;
 			const target = event.target as Node | null;
 			if (target === null || trigger.current?.contains(target) || panel.current?.contains(target)) return;
 			close(false);
@@ -135,40 +130,7 @@ export function QuotaDock({ t }: { t: Translate }) {
 			document.removeEventListener("pointerdown", onPointer);
 			document.removeEventListener("mousedown", onPointer);
 		};
-	}, [open, close]);
-
-	// Anchor above the button (right edges aligned) and bound the panel inside the viewport (8 px margins,
-	// width and height capped, internal scroll). Measured synchronously on open and when the view changes
-	// (the trigger text can change its width); resize and scroll are coalesced to one measure per frame.
-	// biome-ignore lint/correctness/useExhaustiveDependencies: `view` only re-measures the anchor after a content change.
-	useLayoutEffect(() => {
-		if (!open) {
-			setPlacement(undefined);
-			return;
-		}
-		const measure = (): void => {
-			const rect = trigger.current?.getBoundingClientRect();
-			if (rect === undefined) return;
-			const next = computePlacement(rect, { width: window.innerWidth, height: window.innerHeight });
-			setPlacement((previous) => (samePlacement(previous, next) ? previous : next));
-		};
-		measure();
-		let frame: number | undefined;
-		const schedule = (): void => {
-			if (frame !== undefined) return;
-			frame = window.requestAnimationFrame(() => {
-				frame = undefined;
-				measure();
-			});
-		};
-		window.addEventListener("resize", schedule);
-		window.addEventListener("scroll", schedule, true);
-		return () => {
-			window.removeEventListener("resize", schedule);
-			window.removeEventListener("scroll", schedule, true);
-			if (frame !== undefined) window.cancelAnimationFrame(frame);
-		};
-	}, [open, view]);
+	}, [open, close, gesture]);
 
 	// Move focus into the panel once, after the first positioned render: until `placement` exists the panel is
 	// visibility:hidden and a hidden element cannot take focus (the portal is not next to the button in tab order).
@@ -203,7 +165,9 @@ export function QuotaDock({ t }: { t: Translate }) {
 
 	const trapTab = (event: ReactKeyboardEvent<HTMLDivElement>): void => {
 		if (event.key !== "Tab") return;
-		const items = [...(panel.current?.querySelectorAll<HTMLElement>("button:not([disabled])") ?? [])];
+		const items = [
+			...(panel.current?.querySelectorAll<HTMLElement>('button:not([disabled]), [tabindex="0"]') ?? []),
+		].filter((item) => item.closest("[hidden]") === null);
 		const first = items[0];
 		const last = items.at(-1);
 		if (first === undefined || last === undefined) return;
@@ -243,10 +207,27 @@ export function QuotaDock({ t }: { t: Translate }) {
 							role="dialog"
 							aria-label={t("quotaPopupTitle")}
 							data-minimized={minimized}
-							style={placement === undefined ? { visibility: "hidden", right: 0, bottom: 0 } : placement}
+							data-dragging={active}
+							style={
+								placement === undefined
+									? { visibility: "hidden", left: 0, top: 0 }
+									: { ...placement, height: minimized ? 48 : placement.height }
+							}
 							onKeyDown={trapTab}
 						>
-							<div className="dsh-coding-oauth-quota-header">
+							{/* biome-ignore lint/a11y/useSemanticElements: draggable title bar, not a fieldset. */}
+							<div
+								className="dsh-coding-oauth-quota-header"
+								role="group"
+								aria-label={t("quotaMoveResize")}
+								// biome-ignore lint/a11y/noNoninteractiveTabindex: keyboard move/resize target required by the spec.
+								tabIndex={0}
+								onPointerDown={(event) => start(event)}
+								onKeyDown={keyDown}
+								onDoubleClick={(event) => {
+									if (!(event.target as Element).closest("button")) reset();
+								}}
+							>
 								<h2 className="dsh-coding-oauth-quota-title">{t("quotaPopupTitle")}</h2>
 								<button
 									type="button"
@@ -267,6 +248,15 @@ export function QuotaDock({ t }: { t: Translate }) {
 									onClick={() => close(true)}
 								>
 									×
+								</button>
+								<button
+									type="button"
+									className="dsh-coding-oauth-quota-icon"
+									aria-label={t("quotaResetPosition")}
+									title={t("quotaResetPosition")}
+									onClick={reset}
+								>
+									↺
 								</button>
 							</div>
 							<div id="dsh-coding-oauth-quota-body" className="dsh-coding-oauth-quota-body" hidden={minimized}>
@@ -318,7 +308,7 @@ export function QuotaDock({ t }: { t: Translate }) {
 															</span>
 														</button>
 														<div id={`dsh-quota-account-${index}`} hidden={!!collapsed[row.route]}>
-															<QuotaRowDetails t={t} row={row} now={now} />
+															<QuotaRowDetails t={t} row={row} now={now} spacious />
 														</div>
 													</section>
 												))}
@@ -361,6 +351,17 @@ export function QuotaDock({ t }: { t: Translate }) {
 									</>
 								)}
 							</div>
+							{minimized
+								? null
+								: (["n", "s", "e", "w", "ne", "nw", "se", "sw"] as const).map((edge: ResizeEdge) => (
+										<div
+											key={edge}
+											className="dsh-coding-oauth-quota-resize"
+											data-edge={edge}
+											aria-hidden="true"
+											onPointerDown={(event) => start(event, edge)}
+										/>
+									))}
 						</div>,
 						document.body,
 					)

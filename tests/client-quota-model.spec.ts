@@ -1,5 +1,5 @@
 import { expect, it } from "vitest";
-import { computePlacement } from "../src/client/quotaDockPlacement.ts";
+import { boundPlacement, computePlacement, parsePlacement, resizePlacement } from "../src/client/quotaDockPlacement.ts";
 import {
 	formatClock,
 	formatReset,
@@ -92,27 +92,56 @@ it("stale numbers have no warning unless the last read failed", () => {
 	expect(quotaNote(t, { ...plain, quota: { ...plain.quota, errorCode: "TIMEOUT" } })).toMatch(/^Last read failed:/u);
 });
 
-it("computePlacement keeps the panel inside the viewport with 8 px margins", () => {
-	// near the left edge: the panel is shifted right instead of leaving the screen
+it("anchors the larger panel above the trigger and keeps it inside 8 px viewport margins", () => {
 	expect(computePlacement({ top: 560, right: 60 }, { width: 400, height: 600 })).toEqual({
-		right: 72,
-		bottom: 48,
-		width: 320,
-		maxHeight: 420,
+		left: 8,
+		top: 72,
+		width: 360,
+		height: 480,
 	});
-	// roomy viewport: right edges aligned, height capped at 560
 	expect(computePlacement({ top: 900, right: 1000 }, { width: 1200, height: 1000 })).toEqual({
-		right: 200,
-		bottom: 108,
-		width: 320,
-		maxHeight: 560,
+		left: 640,
+		top: 332,
+		width: 360,
+		height: 560,
 	});
-	// narrow viewport: width min(320, 100vw - 16)
-	const narrow = computePlacement({ top: 500, right: 100 }, { width: 300, height: 600 });
-	expect(narrow.width).toBe(284);
-	expect(narrow.right).toBe(8);
-	// trigger near the top: the panel keeps at least 120 px and never extends above the top margin
-	const top = computePlacement({ top: 20, right: 500 }, { width: 1000, height: 600 });
-	expect(top.bottom + top.maxHeight + 8).toBeLessThanOrEqual(600);
-	expect(top.maxHeight).toBeGreaterThanOrEqual(120);
+	expect(computePlacement({ top: 20, right: 100 }, { width: 300, height: 200 })).toEqual({
+		left: 8,
+		top: 8,
+		width: 284,
+		height: 184,
+	});
+});
+
+it("bounds saved geometry, validates finite numbers and rejects malformed storage", () => {
+	const raw = { left: 2000, top: -50, width: 9000, height: 5000 };
+	expect(parsePlacement(raw)).toEqual(raw);
+	expect(boundPlacement(raw, { width: 400, height: 300 })).toEqual({ left: 8, top: 8, width: 384, height: 284 });
+	for (const invalid of [
+		null,
+		[],
+		{},
+		{ ...raw, width: 0 },
+		{ ...raw, height: -1 },
+		{ ...raw, top: "20" },
+		{ ...raw, left: NaN },
+		{ ...raw, width: Infinity },
+	])
+		expect(parsePlacement(invalid)).toBeUndefined();
+});
+
+it("resizes every edge/corner with minimum size, viewport maximums and fixed opposite edges", () => {
+	const start = { left: 100, top: 100, width: 360, height: 300 };
+	const viewport = { width: 1000, height: 800 };
+	expect(resizePlacement(start, "se", -9999, -9999, viewport)).toEqual({ ...start, width: 300, height: 220 });
+	expect(resizePlacement(start, "se", 9999, 9999, viewport)).toEqual({ ...start, width: 892, height: 692 });
+	expect(resizePlacement(start, "nw", 9999, 9999, viewport)).toEqual({ left: 160, top: 180, width: 300, height: 220 });
+	expect(resizePlacement(start, "nw", -9999, -9999, viewport)).toEqual({ left: 8, top: 8, width: 452, height: 392 });
+	for (const edge of ["n", "s", "e", "w", "ne", "nw", "se", "sw"] as const) {
+		const next = resizePlacement(start, edge, 20, 30, viewport);
+		expect(next.left).toBeGreaterThanOrEqual(8);
+		expect(next.top).toBeGreaterThanOrEqual(8);
+		expect(next.left + next.width).toBeLessThanOrEqual(992);
+		expect(next.top + next.height).toBeLessThanOrEqual(792);
+	}
 });

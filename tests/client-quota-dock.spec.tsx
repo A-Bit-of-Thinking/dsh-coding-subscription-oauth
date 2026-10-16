@@ -41,6 +41,7 @@ beforeEach(() => {
 		],
 	});
 	vi.setSystemTime(NOW);
+	localStorage.clear();
 });
 afterEach(() => {
 	cleanup();
@@ -209,10 +210,10 @@ it("bounds the panel inside the viewport (8 px margins) and re-measures on resiz
 		await openDock();
 		const panel = screen.getByRole("dialog") as HTMLElement;
 		expect(panel.style.visibility).toBe("");
-		expect(panel.style.width).toBe("320px");
-		expect(panel.style.right).toBe("72px"); // left edge = 400 - 72 - 320 = 8
-		expect(panel.style.bottom).toBe("48px");
-		expect(panel.style.maxHeight).toBe("420px"); // 70 % of the viewport, scrolls inside
+		expect(panel.style.width).toBe("360px");
+		expect(panel.style.left).toBe("8px");
+		expect(panel.style.top).toBe("72px");
+		expect(panel.style.height).toBe("480px");
 
 		const raf = vi.spyOn(window, "requestAnimationFrame");
 		for (let i = 0; i < 5; i++) window.dispatchEvent(new Event("scroll"));
@@ -221,7 +222,7 @@ it("bounds the panel inside the viewport (8 px margins) and re-measures on resiz
 		setViewport(300, 600);
 		await flush(40); // a fake animation frame fires at the next 16 ms boundary
 		expect(panel.style.width).toBe("284px"); // min(320px, viewport - 16px)
-		expect(panel.style.right).toBe("8px");
+		expect(panel.style.left).toBe("8px");
 		const after = raf.mock.calls.length;
 		await flush(100);
 		expect(raf.mock.calls.length).toBe(after); // nothing keeps scheduling frames
@@ -543,7 +544,7 @@ it("shows one combined schedule using latest fetch and nearest future refresh", 
 	expect(document.body.textContent).not.toMatch(/out of date|Updated .*ago/iu);
 });
 
-it("treats stale without an error as normal and keeps each reset on its window row", async () => {
+it("treats stale without an error as normal with larger metrics in a separate block after the bar", async () => {
 	await mountDock(
 		snapshot([
 			row({
@@ -564,9 +565,13 @@ it("treats stale without an error as normal and keeps each reset on its window r
 	for (const bar of bars) {
 		const line = bar.parentElement;
 		expect(line?.getAttribute("data-quota-window")).toBe("true");
-		expect(line?.style.flexDirection).not.toBe("column");
+		expect(line?.style.display).toBe("grid");
 		expect(line?.style.whiteSpace).toBe("nowrap");
-		expect(line?.style.fontSize).toBe("11px");
+		expect(line?.style.fontSize).toBe("13px");
+		const metrics = line?.querySelector<HTMLElement>("[data-quota-metrics]");
+		expect(metrics?.style.display).toBe("block");
+		expect(metrics?.style.fontSize).toBe("13px");
+		expect(bar.nextElementSibling).toBe(metrics);
 	}
 	expect(bars[0]?.parentElement?.textContent).toContain("reset ");
 	expect(bars[1]?.parentElement?.textContent).not.toContain("reset");

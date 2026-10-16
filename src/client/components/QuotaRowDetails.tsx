@@ -7,12 +7,22 @@ import { ProgressBar } from "./ProgressBar.tsx";
 
 type Translate = (key: GrokBuildSettingsKey, params?: Record<string, unknown>) => string;
 
-export function QuotaRowDetails({ t, row, now }: { t: Translate; row: QuotaRow; now: number }) {
+export function QuotaRowDetails({
+	t,
+	row,
+	now,
+	spacious = false,
+}: {
+	t: Translate;
+	row: QuotaRow;
+	now: number;
+	spacious?: boolean;
+}) {
 	const note = quotaNote(t, row);
 	const failed = row.quota.state === "error" || (row.quota.state === "stale" && row.quota.errorCode !== undefined);
 	const showWindows = row.quota.state !== "disabled" && row.quota.state !== "unsupported";
 	return (
-		<div style={{ display: "flex", flexDirection: "column", gap: 4, minWidth: 0 }}>
+		<div style={{ display: "flex", flexDirection: "column", gap: spacious ? 16 : 4, minWidth: 0 }}>
 			{showWindows
 				? (["five_hour", "seven_day"] as const).map((id) => {
 						const found = windowOf(row, id);
@@ -24,6 +34,7 @@ export function QuotaRowDetails({ t, row, now }: { t: Translate; row: QuotaRow; 
 								key={id}
 								value={found.usedPercent}
 								label={`${label} · ${t("quotaUsedPercent", { percent: Math.round(found.usedPercent) })}`}
+								stacked={spacious}
 								compactLabel={label}
 								compactValue={t("quotaUsedPercent", { percent: Math.round(found.usedPercent) })}
 								{...(reset === undefined ? {} : { meta: t("quotaResetsAt", { time: reset }) })}
@@ -33,7 +44,11 @@ export function QuotaRowDetails({ t, row, now }: { t: Translate; row: QuotaRow; 
 				: null}
 			{note === undefined ? null : (
 				<div
-					style={{ ...hintStyle, ...(failed ? { color: "var(--dsw-alias-state-warn-primary)" } : {}) }}
+					style={{
+						...hintStyle,
+						...(spacious ? { fontSize: 13 } : {}),
+						...(failed ? { color: "var(--dsw-alias-state-warn-primary)" } : {}),
+					}}
 					role={failed ? "alert" : undefined}
 				>
 					{note}

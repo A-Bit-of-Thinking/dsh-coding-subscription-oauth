@@ -9,6 +9,7 @@ export interface ProgressBarProps {
 	meta?: string;
 	compactLabel?: string;
 	compactValue?: string;
+	stacked?: boolean;
 }
 
 function barColor(percent: number): string {
@@ -18,7 +19,7 @@ function barColor(percent: number): string {
 	return "var(--dsw-alias-button-info-fill, var(--dsw-static-deepseek-500, #4f6ef7))";
 }
 
-export function ProgressBar({ value, label, meta, compactLabel, compactValue }: ProgressBarProps) {
+export function ProgressBar({ value, label, meta, compactLabel, compactValue, stacked = false }: ProgressBarProps) {
 	const clamped = Math.max(0, Math.min(100, value));
 	if (compactLabel !== undefined) {
 		const text = { overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", minWidth: 0 } as const;
@@ -26,16 +27,16 @@ export function ProgressBar({ value, label, meta, compactLabel, compactValue }: 
 			<div
 				data-quota-window="true"
 				style={{
-					display: "flex",
+					display: stacked ? "grid" : "flex",
 					alignItems: "center",
 					gap: 5,
 					minWidth: 0,
-					fontSize: 11,
-					lineHeight: "16px",
+					fontSize: stacked ? 13 : 11,
+					lineHeight: stacked ? "20px" : "16px",
 					whiteSpace: "nowrap",
 				}}
 			>
-				<span style={{ ...text, flex: "0 1 38px" }} title={compactLabel}>
+				<span style={{ ...text, ...(stacked ? {} : { flex: "0 1 38px" }) }} title={compactLabel}>
 					{compactLabel}
 				</span>
 				<div
@@ -47,7 +48,7 @@ export function ProgressBar({ value, label, meta, compactLabel, compactValue }: 
 					style={{
 						flex: "1 1 48px",
 						minWidth: 12,
-						height: 5,
+						height: stacked ? 8 : 5,
 						borderRadius: 4,
 						background: "var(--dsw-alias-border-l2)",
 						overflow: "hidden",
@@ -55,13 +56,27 @@ export function ProgressBar({ value, label, meta, compactLabel, compactValue }: 
 				>
 					<div style={{ width: `${clamped}%`, height: "100%", background: barColor(clamped) }} />
 				</div>
-				<span style={{ ...text, flex: "0 1 auto" }} title={compactValue}>
-					{compactValue}
-				</span>
-				{meta === undefined ? null : (
-					<span style={{ ...text, flex: "0 1 auto", color: "var(--dsw-alias-label-tertiary)" }} title={meta}>
-						{meta}
-					</span>
+				{stacked ? (
+					<div
+						data-quota-metrics="true"
+						style={{ display: "block", fontSize: 13, lineHeight: "20px", whiteSpace: "normal" }}
+					>
+						<span>{compactValue}</span>
+						{meta === undefined ? null : (
+							<span style={{ marginLeft: 8, color: "var(--dsw-alias-label-tertiary)" }}>{meta}</span>
+						)}
+					</div>
+				) : (
+					<>
+						<span style={{ ...text, flex: "0 1 auto" }} title={compactValue}>
+							{compactValue}
+						</span>
+						{meta === undefined ? null : (
+							<span style={{ ...text, flex: "0 1 auto", color: "var(--dsw-alias-label-tertiary)" }} title={meta}>
+								{meta}
+							</span>
+						)}
+					</>
 				)}
 			</div>
 		);
