@@ -4,6 +4,8 @@ All notable changes to `dsh-coding-subscription-oauth` are documented here, foll
 
 ## Unreleased
 
+## v0.8.6 - 2026-10-17
+
 ### Fixed
 
 - Explain the localhost error page before remote Claude authorization and automatically finish sign-in when a pasted full callback URL matches the pending authorization state and redirect address. Keep manual submission available for other input formats.
