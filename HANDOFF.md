@@ -1,16 +1,29 @@
-# Maintenance du fork — DSH 0.2.0-rc.2
+# Maintenance du fork — DSH 0.2.1-rc.3
 
 Ce document est **public** : uniquement du contexte technique reproductible, aucun profil d'utilisateur, chemin personnel, credential ou journal réel. Les enquêtes privées restent dans `docs/local/` (ignoré par Git).
 
 ## Identité et provenance
 
 - Fork : [A-Bit-of-Thinking/dsh-coding-subscription-oauth](https://github.com/A-Bit-of-Thinking/dsh-coding-subscription-oauth).
-- Amont : [lninghaha/dsh-coding-subscription-oauth](https://github.com/lninghaha/dsh-coding-subscription-oauth), base `ef93a2f` / tag `v0.8.5`.
+- Amont : [lninghaha/dsh-coding-subscription-oauth](https://github.com/lninghaha/dsh-coding-subscription-oauth). Base du fork : `ef93a2f` / tag `v0.8.5` ; le rebasage sur `0.2.1-rc.3` fusionne l'amont `1f31dd5` (`v0.8.7`).
 - Branche de maintenance : `main`. L'ancien nom de branche de rebasage n'est pas une instruction de checkout.
-- Paquet : `dsh-coding-subscription-oauth@0.8.5` ; version conservée, **pas une nouvelle publication npm**. Identifiez le build par sa source et son commit.
+- Paquet : `dsh-coding-subscription-oauth@0.8.8`. Identifiez le build par sa source et son commit.
 - Identifiant Cordis et routes conservés pour ne pas casser les comptes existants.
 
-Pour installer le fork, lire [INSTALL.md](INSTALL.md). Les scripts propres à une machine ne sont ni livrés ni supposés disponibles ici.
+Pour installer le fork, lire [INSTALL.md](INSTALL.md).
+
+## Mettre à jour l'installation locale
+
+[scripts/update-local.ps1](scripts/update-local.ps1) reconstruit ce dépôt et le réinstalle dans le profil Desktop, avec le runtime Node/pnpm embarqué par DSH :
+
+```powershell
+# DeepSeek Harness doit être complètement fermé
+.\scripts\update-local.ps1
+```
+
+Le script refuse de s'exécuter tant que l'application tourne (le profil `desktop` appartient à Electron et le CLI le verrouille sinon). Il sauvegarde `package.json`, `pnpm-lock.yaml`, `compatibility.json` et `lib/` avant de construire, puis restaure cette sauvegarde si une étape échoue. Options : `-SkipTests`, `-SkipInstall` (construire sans toucher au profil), `-Force` (passer outre la garde), `-DshHome`, `-Profile`.
+
+Après la mise à jour, relancer DSH et vérifier **Paramètres → Coding OAuth**.
 
 ## Frontières de travail
 
@@ -22,7 +35,9 @@ Pour installer le fork, lire [INSTALL.md](INSTALL.md). Les scripts propres à un
 
 ## Compatibilité exacte
 
-Le noyau cible est **0.2.0-rc.2** : `cordis` 4.0.4, `schemastery` 3.18.4, `pi-ai` 0.87.1 et React 18.3.1. Une autre version est un candidat à tester, pas une compatibilité garantie.
+Le noyau cible est **0.2.1-rc.3** : `cordis` 4.0.5, `schemastery` 3.18.5, `pi-ai` 1.1.0 et React 18.3.1. Une autre version est un candidat à tester, pas une compatibilité garantie.
+
+`engines.dsh` vaut `>=0.2.1-rc.3 <0.3.0`. La porte d'installation du noyau lit `engines.dsh` **en priorité** et ignore `peerDependencies` quand ce champ existe ; c'est lui qui décide si le bundle est monté, les peers ne servant qu'à documenter. `dsh-invariants` reste épinglé à `0.2.0-rc.2`, cette version n'étant pas publiée pour la ligne 0.2.1.
 
 Les trois sources de BOM doivent rester cohérentes :
 
@@ -36,6 +51,7 @@ Les trois sources de BOM doivent rester cohérentes :
 
 - Les arguments `ToolCall.arguments` sont du JSON strict ; conserver le filtrage du gateway.
 - Le contexte provider-facing pi-ai est normalisé/branded ; les tests de transport utilisent `normalizeContext()`.
+- pi-ai 1.1.0 embarque `gpt-6.1-sol` **nativement** : ne pas le redéclarer comme ajout de catalogue sans vérifier d'abord `openaiCodexProvider().getModels()`, sinon l'entrée du fork écrase celle du noyau (fenêtre de contexte, tarifs, paliers).
 - `piProvider` est optionnel ; éviter les champs explicitement `undefined` avec `exactOptionalPropertyTypes`.
 - La politique d'images de l'adaptateur hôte change : vérifier dimensions, bytes, offload et limites base64, pas seulement le typecheck.
 - Les capabilities ne dépendent plus d'un `settings.register()` dans DSH 0.2 : les forms dérivent du `Config` volatile du plugin. Écrire seulement les champs de capacités dans l'entrée propriétaire, avec révision hôte, sans remplacer proxy/gateway/ownerRequest.

@@ -28,7 +28,8 @@ All notable changes to `dsh-coding-subscription-oauth` are documented here, foll
 
 ### Changed
 
-- Target the exact DSH 0.2.0-rc.2 BOM and adapt the host/pi-ai contracts; package version remains 0.8.5 (no fork-specific npm publication).
+- Target the exact DSH 0.2.1-rc.3 BOM (`cordis` 4.0.5, `schemastery` 3.18.5, `pi-ai` 1.1.0) and narrow `engines.dsh` to `>=0.2.1-rc.3 <0.3.0`; `dsh-invariants` stays on `0.2.0-rc.2`, its last published version. Version is now 0.8.8.
+- Merge upstream 0.8.7, which teaches the host install gate about `engines.dsh` and adds the local callback bridge for remote Claude sign-in.
 - Connected subscription services are presented first in stable order; OpenCode Go uses a compact, initially collapsed account card.
 - Capability settings bridge the modern host's volatile plugin configuration with revision-checked, namespace-owned writes.
 - Replace the English/French README and installation guide with fork-specific instructions, correct repository metadata and the in-app documentation link, and make public maintenance notes machine-independent.
@@ -36,6 +37,7 @@ All notable changes to `dsh-coding-subscription-oauth` are documented here, foll
 
 ### Fixed
 
+- Under pi-ai 1.1.0 the Codex catalog already ships `gpt-6.1-sol`; the model-additions test that asserted its absence now asserts the untouched catalog, so a future pi-ai addition cannot silently break the wiring check.
 - Account renames and default-account changes now reach the host's model picker (the host keeps the name captured at registration); previously only the adapter's own answer changed.
 - Codex quota reads can no longer hang: token resolution (including an OAuth refresh) is cancellable and every read ends at its 20-second deadline; a Codex 401 now invalidates the rejected token so the single retry uses a refreshed one.
 - `coding_subscription_status` no longer claims `include_policy=true` returns the policy while guidance is off (nothing is disclosed then), `refresh=true` on an unknown route is skipped instead of failing, and the guidance text promises automatic refreshes only while quota reads are enabled.
@@ -48,6 +50,7 @@ All notable changes to `dsh-coding-subscription-oauth` are documented here, foll
 ### Added
 
 - Reviewed model additions for GPT-6.1 Sol, Claude Sonnet 5.5 and Claude Haiku 5.5. Haiku uses adaptive thinking and omits incompatible sampling parameters; API price estimates use the conservative long-context tier.
+- `scripts/update-local.ps1`: rebuild this repository and reinstall it into a DSH profile with the Node/pnpm runtime shipped inside the app. It refuses to run while DSH is alive, backs up the profile manifests and `lib/` first, and restores them if any step fails.
 
 ### Privacy
 
