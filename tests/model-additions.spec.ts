@@ -346,12 +346,19 @@ describe("cablage dans les fournisseurs OAuth", () => {
 	}
 
 	it("sans ajout configure, le catalogue Codex reste exactement celui de pi-ai", () => {
+		// pi-ai 1.1.0 livre desormais `gpt-6.1-sol` nativement : la reference n'est
+		// plus "ce modele est absent", mais "aucune entree n'est ajoutee ni retiree".
+		const nativeIds = openaiCodexProvider()
+			.getModels()
+			.map((model) => model.id);
+		expect(nativeIds.length).toBeGreaterThan(0);
+		expect(nativeIds).toContain("gpt-6-sol");
+
 		withTemporaryAdditions(CODEX, [], () => {
-			const models = CODEX_OAUTH_PROVIDER.providerFactory().getModels();
-			const ids = models.map((model) => model.id);
-			expect(ids.length).toBeGreaterThan(0);
-			expect(ids).toContain("gpt-6-sol");
-			expect(ids).not.toContain("gpt-6.1-sol");
+			const ids = CODEX_OAUTH_PROVIDER.providerFactory()
+				.getModels()
+				.map((model) => model.id);
+			expect(ids).toEqual(nativeIds);
 		});
 	});
 

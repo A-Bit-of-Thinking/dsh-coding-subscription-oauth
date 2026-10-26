@@ -4,10 +4,11 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { Readable } from "node:stream";
 import type { Context } from "@deepseek-ai/cordis";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import {
 	CODING_OAUTH_ACCOUNTS_REMOVE_PATH,
 	CODING_OAUTH_ACCOUNTS_SET_ACTIVE_PATH,
+	CODING_OAUTH_LOGIN_CODE_PATH,
 	CODING_OAUTH_LOGIN_PATH,
 	CODING_OAUTH_STATUS_PATH,
 	GROK_BUILD_AUTH_IMPORT_PATH,
@@ -17,6 +18,7 @@ import {
 	type GrokBuildWebAuth,
 	registerCodingOAuthRoutes,
 	registerGrokBuildAuthRoutes,
+	SubscriptionWebAuth,
 } from "../src/auth-routes.ts";
 import { OAUTH_PROVIDER_DEFINITIONS } from "../src/oauth-providers.ts";
 import { OAuthProviderSession } from "../src/oauth-session.ts";
@@ -142,6 +144,44 @@ async function codingStatusHandler(
 }
 
 describe("Coding OAuth HTTP body guards", () => {
+	it("passes explicit callback attempt IDs to the subscription lifecycle and preserves legacy manual submission", async () => {
+		const submit = vi.spyOn(SubscriptionWebAuth.prototype, "submitCode").mockResolvedValue(undefined);
+		const { routes, cleanups, context } = createAuthRouteContext();
+		const definition = OAUTH_PROVIDER_DEFINITIONS.find((provider) => provider.slug === "claude")!;
+		registerCodingOAuthRoutes(context, unusedSession(), [{ definition } as OAuthProviderSession]);
+		try {
+			const handler = routes.get(CODING_OAUTH_LOGIN_CODE_PATH)!;
+			for (const loginAttemptId of ["fixture-attempt", undefined]) {
+				const response = new TestResponse();
+				await handler(
+					request(JSON.stringify({ provider: "claude", code: "fixture-code", loginAttemptId })),
+					response as unknown as ServerResponse,
+				);
+				expect(response.status).toBe(200);
+				expect(submit).toHaveBeenLastCalledWith("fixture-code", loginAttemptId);
+			}
+		} finally {
+			submit.mockRestore();
+			for (const cleanup of cleanups) await cleanup();
+		}
+	});
+
+	it.each(["", " ", null, 1, {}])(
+		"rejects an invalid explicit login attempt ID before dispatching a callback: %j",
+		async (loginAttemptId) => {
+			const { routes, context } = createAuthRouteContext();
+			registerCodingOAuthRoutes(context, unusedSession(), []);
+			const handler = routes.get(CODING_OAUTH_LOGIN_CODE_PATH)!;
+			const response = new TestResponse();
+			await handler(
+				request(JSON.stringify({ provider: "claude", code: "fixture-code", loginAttemptId })),
+				response as unknown as ServerResponse,
+			);
+			expect(response.status).toBe(400);
+			expect(JSON.parse(response.body)).toEqual({ error: "loginAttemptId must be a non-empty string" });
+		},
+	);
+
 	it("returns 400 for malformed JSON instead of a generic route failure", async () => {
 		const handler = await loginHandler();
 		const response = new TestResponse();

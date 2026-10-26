@@ -1,5 +1,5 @@
 import { execFile, spawn } from "node:child_process";
-import { readdir, readFile, rm } from "node:fs/promises";
+import { readdir, readFile, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { promisify } from "node:util";
 import { assertHttp200 } from "./rc2-http-status.mjs";
@@ -34,6 +34,12 @@ try {
 	if (JSON.stringify(pluginManifest).includes("file:../dsh-coding-oauth-core")) {
 		throw new Error("packed manifest retained a sibling core path");
 	}
+	// rc.2 Web disables its base HMR row, but the CLI requires it to watch user patches.
+	// Enable that native row only in the empty disposable profile used by this smoke.
+	const patchPath = join(home, "profiles", "web", "cordis.patch.yml");
+	const profilePatch = (await readFile(patchPath, "utf8")).replace(/^\s*#.*$/gmu, "").trim();
+	if (profilePatch !== "[]") throw new Error("rc2 smoke refuses to replace a nonempty profile patch");
+	await writeFile(patchPath, "- id: hmr\n  disabled: false\n  config:\n    root: []\n");
 	child = spawn(bin, ["web", "--port", String(port)], { cwd: root, env: environment, stdio: ["ignore", "pipe", "pipe"] });
 	let log = "";
 	child.stdout.on("data", (chunk) => (log += chunk));

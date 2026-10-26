@@ -1,4 +1,4 @@
-import { mkdir, writeFile } from "node:fs/promises";
+import { chmod, mkdir, writeFile } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { build } from "esbuild";
@@ -76,8 +76,23 @@ const invariant = await build({
 	outfile: resolve(outdir, "invariant.js"),
 	banner: { js: "/** dsh-coding-subscription-oauth invariant entry */" },
 });
+const callbackBridge = await build({
+	...shared,
+	entryPoints: [resolve(root, "src/callback-bridge-bin.ts")],
+	outfile: resolve(outdir, "callback-bridge-bin.js"),
+});
+await chmod(resolve(outdir, "callback-bridge-bin.js"), 0o755);
 await writeFile(
 	resolve(outdir, "server.meta.json"),
-	JSON.stringify({ index: index.metafile, bin: bin.metafile, invariant: invariant.metafile }, null, 2),
+	JSON.stringify(
+		{
+			index: index.metafile,
+			bin: bin.metafile,
+			invariant: invariant.metafile,
+			callbackBridge: callbackBridge.metafile,
+		},
+		null,
+		2,
+	),
 );
-console.log(`built ${outdir}/{index,bin,invariant}.js`);
+console.log(`built ${outdir}/{index,bin,invariant,callback-bridge-bin}.js`);

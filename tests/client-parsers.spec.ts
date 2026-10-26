@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+	isMatchingClaudeCallback,
 	mergeSources,
 	parseCapabilities,
 	parseCapabilitySettings,
@@ -12,6 +13,27 @@ import {
 } from "../src/client/parsers.ts";
 
 describe("client parsers", () => {
+	it("only recognizes complete callbacks for the pending Claude state and redirect address", () => {
+		const challenge =
+			"https://claude.ai/oauth/authorize?state=pending-state&redirect_uri=http%3A%2F%2Flocalhost%3A53692%2Fcallback";
+		const callback = "http://localhost:53692/callback?code=fixture-code&state=pending-state";
+		expect(isMatchingClaudeCallback(callback, challenge)).toBe(true);
+		for (const input of [
+			callback.replace("pending-state", "stale-state"),
+			callback.replace("53692", "12345"),
+			callback.replace("localhost", "example.com"),
+			callback.replace("/callback", "/other"),
+			callback.replace("code=fixture-code&", ""),
+			`${callback}&code=duplicate`,
+			`${callback}&state=duplicate`,
+			`${callback}&error=denied`,
+			"fixture-code",
+			"not a URL",
+		])
+			expect(isMatchingClaudeCallback(input, challenge)).toBe(false);
+		expect(isMatchingClaudeCallback(callback, undefined)).toBe(false);
+		expect(isMatchingClaudeCallback(callback, challenge.replace("claude.ai", "example.com"))).toBe(false);
+	});
 	it("merges missing CLI sources with default paths", () => {
 		const merged = mergeSources([]);
 		expect(merged).toHaveLength(4);

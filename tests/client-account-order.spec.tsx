@@ -284,7 +284,9 @@ it("leaves new signing-in flows open with their browser link, code draft, keyboa
 	fireEvent.change(code, { target: { value: "next-code" } });
 	expect(input.onCodeChange).toHaveBeenCalledWith("kimi", "next-code");
 	fireEvent.keyDown(code, { key: "Enter" });
-	expect(input.onSubmitCode).toHaveBeenCalledWith("kimi");
+	// Enter submits the stored draft, so the optional inline `code` is undefined;
+	// the explicit `code` argument is reserved for the paste-to-finish path.
+	expect(input.onSubmitCode).toHaveBeenCalledWith("kimi", undefined);
 	fireEvent.click(screen.getByRole("button", { name: en.cancelLogin }));
 	expect(input.onCancelLogin).toHaveBeenCalledWith("kimi");
 	fireEvent.click(document.getElementById("coding-oauth-login-claude")!);

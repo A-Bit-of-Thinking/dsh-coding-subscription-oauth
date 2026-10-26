@@ -12,6 +12,8 @@ const runtimeFiles = new Set([
 	"bin.js.map",
 	"invariant.js",
 	"invariant.js.map",
+	"callback-bridge-bin.js",
+	"callback-bridge-bin.js.map",
 	"client.js",
 	"client.js.map",
 ]);
