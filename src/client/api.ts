@@ -36,11 +36,12 @@ export function cancelPreviewTicket(previewId: string, keepalive = false): void 
 	}).catch(() => undefined);
 }
 
-export async function jsonRequest<T>(path: string, method = "GET", body?: unknown): Promise<T> {
+export async function jsonRequest<T>(path: string, method = "GET", body?: unknown, signal?: AbortSignal): Promise<T> {
 	const response = await fetch(path, {
 		method,
 		headers: { accept: "application/json", ...(body === undefined ? {} : { "content-type": "application/json" }) },
 		credentials: "same-origin",
+		...(signal === undefined ? {} : { signal }),
 		...(body === undefined ? {} : { body: JSON.stringify(body) }),
 	});
 	const value: unknown = await response.json().catch(() => undefined);

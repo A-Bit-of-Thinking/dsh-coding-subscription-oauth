@@ -53,6 +53,28 @@ All notable changes to `dsh-coding-subscription-oauth` are documented here, foll
 
 - Remove operator-specific paths/profile notes from current public maintenance documents. This does not remove information from previously published commits.
 
+## v0.8.7 - 2026-10-23
+
+### Fixed
+
+- Accept DeepSeek Harness `0.1.x`–`0.2.x` installs via `engines.dsh` `>=0.1.1-rc.2 <0.3.0` and matching peer ranges so DSH `0.2.1-rc.2` is no longer rejected at the install gate (`#51`). Verified build/smoke BOM remains exact `0.1.1-rc.2`; `0.2.1-rc.2` is recorded as an unverified candidate.
+
+## v0.8.6 - 2026-10-17
+
+### Fixed
+
+- Explain the localhost error page before remote Claude authorization and automatically finish sign-in when a pasted full callback URL matches the pending authorization state and redirect address. Keep manual submission available for other input formats.
+- Require a matching login-operation receipt before automatic browser return reports success; an existing signed-in account after failed or canceled authorization cannot satisfy that check. An accepted callback can finish forwarding across the pending-session deadline.
+- Bind automatic callback submission to its pending login attempt, preserve a newer pending login across older cancellation/account updates, and use the local bridge for confirmed remote Claude reauthorization. Canceling helper startup stops further discovery and suppresses readiness claims.
+- Preserve an already registered macOS service without an owned installation file. Recover confirmation after slow authorization or a lost response without resubmitting the callback, distinguish an unconfirmed observation timeout from failure, and keep keyboard focus inside the callback return dialog.
+- Reject new subscription sign-in while sign-out is completing or the plugin is disposed, so an older logout cannot erase a newer credential and an in-flight request cannot restart authorization after teardown. Concurrent sign-out requests share the same operation.
+- Reject retries while a canceled authorization is still draining, wait for owned logout during plugin disposal, and reject stale logout requests after teardown. Recover automatic return after transient initial status failure or an ambiguous callback acknowledgement, including manual submission winning the race, using only the original attempt's completion receipt.
+- Report an unconfirmed result instead of a failed login when the first successful return-page status read finds an already signed-in account without a pending challenge. Do not submit again or infer that an unbound completion receipt belongs to the callback.
+
+### Added
+
+- Local Claude callback bridge with automatic browser return through DSH's existing authenticated sign-in route, receiver readiness before authorization, and a per-user macOS startup installer. The default needs no SSH or cloud access; explicit SSH/IAP forwarding remains available. Remote Accounts settings offer automatic sign-in with callback paste as a fallback.
+
 ## v0.8.5 - 2026-09-15
 
 ### Fixed

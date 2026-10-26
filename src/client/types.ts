@@ -57,6 +57,9 @@ export type SubscriptionStatus = {
 	models: string[];
 	available: string[];
 	selected: string[];
+	loginAttemptId?: string;
+	completedLoginAttemptId?: string;
+	operationError?: string;
 } & (
 	| { status: "signed-out" }
 	| { status: "signing-in"; method: "browser" | "device"; url?: string; userCode?: string }
